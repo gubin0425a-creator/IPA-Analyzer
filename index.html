@@ -66,10 +66,10 @@
         <div class="flex items-center space-x-2 sm:space-x-4 text-xs sm:text-sm">
             <div id="connectionStatus" class="flex items-center space-x-1.5 sm:space-x-2 bg-slate-800/80 px-2.5 py-1 sm:px-3 sm:py-1.5 rounded-lg border border-slate-700/50">
                 <span class="relative flex h-2 w-2 sm:h-2.5 sm:w-2.5">
-                    <span id="statusPing" class="animate-ping absolute inline-flex h-full w-full rounded-full bg-cyan-400 opacity-75"></span>
-                    <span id="statusIndicator" class="relative inline-flex rounded-full h-2 w-2 sm:h-2.5 sm:w-2.5 bg-cyan-500 animate-pulse"></span>
+                    <span id="statusPing" class="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                    <span id="statusIndicator" class="relative inline-flex rounded-full h-2 w-2 sm:h-2.5 sm:w-2.5 bg-emerald-500 animate-pulse"></span>
                 </span>
-                <span id="statusText" class="text-[10px] sm:text-xs font-semibold text-cyan-400">웹 로컬 단독 실행 모드</span>
+                <span id="statusText" class="text-[10px] sm:text-xs font-semibold text-emerald-400">100% 브라우저 로컬 분석</span>
             </div>
             <button id="resetAppBtn" class="hidden px-2.5 py-1 sm:px-3 sm:py-1.5 bg-rose-600/10 text-rose-400 border border-rose-500/20 rounded-lg hover:bg-rose-600 hover:text-white transition-all text-[10px] sm:text-xs font-semibold flex items-center gap-1 sm:gap-1.5">
                 <i class="fa-solid fa-rotate-left"></i> <span class="hidden sm:inline">다른 IPA 분석하기</span><span class="inline sm:hidden">리셋</span>
@@ -532,9 +532,6 @@
             });
 
         // Global State variables
-        let appMode = 'client'; // 'client' or 'backend'
-        const PORT = 8080;
-        const apiHost = `http://${window.location.hostname || 'localhost'}:${PORT}`;
         
         let clientZipInstance = null; // JSZip instance for client-side mode
         let activeZipFiles = {}; // Path -> JSZip Object mapping
@@ -631,58 +628,9 @@
         const downloadAiPromptBtn = document.getElementById('downloadAiPromptBtn');
         const appIconPlaceholder = document.getElementById('appIconPlaceholder');
 
-        // Initial launch logic: Handshake with python backend
-        async function checkBackendConnection() {
-            const host = window.location.hostname;
-            const isLocal = host === 'localhost' || host === '127.0.0.1' || host.startsWith('192.168.') || host.startsWith('10.') || host === '';
-            
-            if (!isLocal) {
-                appMode = 'client';
-                statusIndicator.className = "relative inline-flex rounded-full h-2 w-2 sm:h-2.5 sm:w-2.5 bg-cyan-500 animate-pulse";
-                const statusPing = document.getElementById('statusPing');
-                if (statusPing) {
-                    statusPing.className = "animate-ping absolute inline-flex h-full w-full rounded-full bg-cyan-400 opacity-75";
-                }
-                statusText.innerText = "웹 로컬 단독 실행 모드";
-                statusText.className = "text-[10px] sm:text-xs font-semibold text-cyan-400";
-                stringsServerAlert.classList.remove('hidden');
-                addLog("Running on remote host. Defaulting immediately to Web Local Standalone mode.");
-                return;
-            }
-
-            try {
-                const response = await fetch(`${apiHost}/api/status`, { signal: AbortSignal.timeout(1500) });
-                if (response.ok) {
-                    const data = await response.json();
-                    if (data.status === "ok") {
-                        appMode = 'backend';
-                        statusIndicator.className = "relative inline-flex rounded-full h-2 w-2 sm:h-2.5 sm:w-2.5 bg-emerald-500";
-                        const statusPing = document.getElementById('statusPing');
-                        if (statusPing) {
-                            statusPing.className = "animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75";
-                        }
-                        statusText.innerText = "Python 백엔드 연결 완료";
-                        statusText.className = "text-[10px] sm:text-xs font-semibold text-emerald-400";
-                        stringsServerAlert.classList.add('hidden');
-                        addLog("Connected to high-performance local Python backend.");
-                        return;
-                    }
-                }
-            } catch (err) {
-                // Connection failed, default is already client mode
-            }
-            
-            appMode = 'client';
-            statusIndicator.className = "relative inline-flex rounded-full h-2 w-2 sm:h-2.5 sm:w-2.5 bg-cyan-500 animate-pulse";
-            const statusPing = document.getElementById('statusPing');
-            if (statusPing) {
-                statusPing.className = "animate-ping absolute inline-flex h-full w-full rounded-full bg-cyan-400 opacity-75";
-            }
-            statusText.innerText = "웹 로컬 단독 실행 모드";
-            statusText.className = "text-[10px] sm:text-xs font-semibold text-cyan-400";
-            stringsServerAlert.classList.remove('hidden');
-            addLog("Standard Client-only mode activated. ZIP unzipping and binary-plist parsing run natively in-browser.");
-        }
+        // Initial boot logger (100% Client-Side)
+        addLog("100% Client-Side Web Sandbox Engine activated.");
+        addLog("ZIP extraction, Binary-plist parsing, DEX & AXML decompiling run natively inside your browser.");
 
         function addLog(message, type = 'info') {
             const time = new Date().toLocaleTimeString();
@@ -702,9 +650,6 @@
             logConsole.innerHTML += `<div class="${color} font-mono">${time} ${prefix} ${message}</div>`;
             logConsole.scrollTop = logConsole.scrollHeight;
         }
-
-        // Run connection test on boot
-        checkBackendConnection();
 
         // Responsive mobile layout controller
         function updateMobileLayout() {
@@ -838,11 +783,7 @@
             
             showLoading(true, `${isApk ? 'APK' : 'IPA'} 패키지 해독 중...`, "파일 용량 및 로컬 사양에 따라 수초가 소요됩니다.");
 
-            if (appMode === 'backend') {
-                await processWithBackend(file);
-            } else {
-                await processWithClientOnly(file);
-            }
+            await processWithClientOnly(file);
         }
 
         function showLoading(show, title = "", desc = "") {
@@ -855,65 +796,7 @@
             }
         }
 
-        // ============================================
-        // 1. BACKEND UPLOAD & PROCESS MODE
-        // ============================================
-        async function processWithBackend(file) {
-            addLog("Using backend processing engine. Uploading binary payload...");
-            extractionProgressBar.style.width = '20%';
-            extractionProgressText.innerText = '20%';
 
-            try {
-                const response = await fetch(`${apiHost}/api/upload`, {
-                    method: 'POST',
-                    body: file,
-                    headers: {
-                        'Content-Type': 'application/octet-stream'
-                    }
-                });
-
-                if (!response.ok) {
-                    const err = await response.json();
-                    throw new Error(err.error || "Failed to process IPA inside server");
-                }
-
-                extractionProgressBar.style.width = '80%';
-                extractionProgressText.innerText = '80%';
-                addLog("Backend unzipped and parsed the file bundle successfully!", "success");
-
-                const result = await response.json();
-                appMetadata = result.metadata;
-                
-                // Build and display tree
-                allFilePathsList = [];
-                currentTreeData = result.tree;
-                buildAndRenderTreeList(result.tree);
-                
-                // Setup dashboard
-                setupDashboardView(appMetadata);
-                
-                // Finalize UI transitions
-                extractionProgressBar.style.width = '100%';
-                extractionProgressText.innerText = '100%';
-                
-                setTimeout(() => {
-                    showLoading(false);
-                    uploadState.classList.add('hidden');
-                    dashboardState.classList.remove('hidden');
-                    resetAppBtn.classList.remove('hidden');
-                    selectTab('overview');
-                    addLog(`Successfully launched dashboard for ${appMetadata.app_name}!`, "success");
-                }, 400);
-
-            } catch (err) {
-                showLoading(false);
-                addLog(`Backend Processing Failed: ${err.message}`, "error");
-                alert(`백엔드 디컴파일 서버 오류가 발생하였습니다: ${err.message}\n로컬 클라이언트 모드로 전환합니다.`);
-                addLog("Emergency switching to Client-only Web Mode...");
-                appMode = 'client';
-                await processWithClientOnly(file);
-            }
-        }
 
         // ============================================
         // 2. CLIENT-ONLY DIRECT IN-BROWSER MODE
@@ -1907,19 +1790,8 @@
             showLoading(true, "파일 분석 중...", `해당 파일(${fileNode.name})을 해킹하여 읽는 중입니다.`);
 
             try {
-                if (appMode === 'backend') {
-                    // Fetch content from Python Backend API
-                    const url = `${apiHost}/api/file?path=${encodeURIComponent(fileNode.path)}`;
-                    const response = await fetch(url);
-                    if (!response.ok) {
-                        const err = await response.json();
-                        throw new Error(err.error || "Failed to load file content");
-                    }
-                    const data = await response.json();
-                    renderFileInViewer(data, fileNode.name);
-                } else {
-                    // Load directly from JSZip
-                    const zipEntry = activeZipFiles[fileNode.path];
+                // Load directly from JSZip
+                const zipEntry = activeZipFiles[fileNode.path];
                     if (!zipEntry) {
                         throw new Error("File not found in browser zip bundle");
                     }
@@ -2010,7 +1882,6 @@
                             "content": textContent
                         }, fileNode.name);
                     }
-                }
             } catch (err) {
                 showLoading(false);
                 alert(`파일 로드 실패: ${err.message}`);
@@ -2147,44 +2018,34 @@
             showLoading(true, "바이너리 리깅 디코딩 중...", "바이너리에 내장된 소스코드 흔적을 도출하고 있습니다.");
             
             try {
-                if (appMode === 'backend') {
-                    const response = await fetch(`${apiHost}/api/file?path=${encodeURIComponent(executableName)}`);
-                    if (!response.ok) {
-                        const err = await response.json();
-                        throw new Error(err.error || "Failed to parse binary");
-                    }
-                    const data = await response.json();
-                    renderFileInViewer(data, executableName);
-                } else {
-                    // client fallback
-                    const executableFile = activeZipFiles[executableName];
-                    if (!executableFile) {
-                        // find binary executable anywhere in zip if not directly matched
-                        let foundPath = "";
-                        for (const path of Object.keys(activeZipFiles)) {
-                            if (path.endsWith(`/${executableName}`) || path === executableName) {
-                                foundPath = path;
-                                break;
-                            }
+                // client fallback
+                const executableFile = activeZipFiles[executableName];
+                if (!executableFile) {
+                    // find binary executable anywhere in zip if not directly matched
+                    let foundPath = "";
+                    for (const path of Object.keys(activeZipFiles)) {
+                        if (path.endsWith(`/${executableName}`) || path === executableName) {
+                            foundPath = path;
+                            break;
                         }
-                        if (!foundPath) throw new Error("바이너리 파일을 에셋 꾸러미에서 감지할 수 없습니다.");
-                        
-                        const arrayBuffer = await activeZipFiles[foundPath].async("arraybuffer");
-                        const strings = extractStringsClient(new Uint8Array(arrayBuffer));
-                        renderFileInViewer({
-                            "type": "strings",
-                            "content": strings,
-                            "filename": executableName
-                        }, executableName);
-                    } else {
-                        const arrayBuffer = await executableFile.async("arraybuffer");
-                        const strings = extractStringsClient(new Uint8Array(arrayBuffer));
-                        renderFileInViewer({
-                            "type": "strings",
-                            "content": strings,
-                            "filename": executableName
-                        }, executableName);
                     }
+                    if (!foundPath) throw new Error("바이너리 파일을 에셋 꾸러미에서 감지할 수 없습니다.");
+                    
+                    const arrayBuffer = await activeZipFiles[foundPath].async("arraybuffer");
+                    const strings = extractStringsClient(new Uint8Array(arrayBuffer));
+                    renderFileInViewer({
+                        "type": "strings",
+                        "content": strings,
+                        "filename": executableName
+                    }, executableName);
+                } else {
+                    const arrayBuffer = await executableFile.async("arraybuffer");
+                    const strings = extractStringsClient(new Uint8Array(arrayBuffer));
+                    renderFileInViewer({
+                        "type": "strings",
+                        "content": strings,
+                        "filename": executableName
+                    }, executableName);
                 }
             } catch (err) {
                 showLoading(false);
@@ -2261,22 +2122,6 @@
                 
                 if (isText && activeFileContent) {
                     blob = new Blob([activeFileContent], { type: "text/plain;charset=utf-8" });
-                } else if (appMode === 'backend') {
-                    // fetch raw binary or text
-                    const url = `${apiHost}/api/file?path=${encodeURIComponent(activeFilePath)}`;
-                    const response = await fetch(url);
-                    const data = await response.json();
-                    
-                    if (data.type === 'image') {
-                        // decode base64
-                        const b64 = data.content.split(',')[1];
-                        const binary = atob(b64);
-                        const array = [];
-                        for (let i = 0; i < binary.length; i++) array.push(binary.charCodeAt(i));
-                        blob = new Blob([new Uint8Array(array)], { type: data.mime });
-                    } else {
-                        blob = new Blob([data.content], { type: "text/plain" });
-                    }
                 } else {
                     // client-side
                     const zipEntry = activeZipFiles[activeFilePath];
@@ -2355,7 +2200,7 @@
                 const exportZip = new JSZip();
                 addLog("Starting batch export compile...");
                 
-                if (appMode === 'client' && clientZipInstance) {
+                if (clientZipInstance) {
                     // Loop files and add text/code/images to new zip
                     let exportedCount = 0;
                     for (const [path, entry] of Object.entries(activeZipFiles)) {
@@ -2369,32 +2214,6 @@
                         }
                     }
                     addLog(`Packed ${exportedCount} decompiled assets into bundle ZIP archive.`);
-                } else {
-                    // For backend, since we have the extracted folder locally, it is easier.
-                    // But wait, the browser can construct a zip of all searchable files we request,
-                    // or we can request backend to zip it.
-                    // A client-side zip creation of text/code files is highly clean!
-                    // Let's let the backend know or we can fetch files.
-                    // Actually, the client JS Zip engine can request the files in active files list or we can zip from server!
-                    // To be fast, we can request backend or construct client side.
-                    // Let's create an elegant download using JSZip for compatibility.
-                    alert("로컬 디컴파일된 원본 소스코드는 사용하시는 PC 내부의 다음 폴더에서 직접 복제 및 복사가 가능합니다:\n" + appMetadata.app_dir_name + "\n\n클라이언트 압축 다운로드를 개시합니다.");
-                    
-                    // We can crawl of what we found or generate a request.
-                    // Let's zip on client if they uploaded it
-                    if (clientZipInstance) {
-                        let exportedCount = 0;
-                        for (const [path, entry] of Object.entries(activeZipFiles)) {
-                            if (!path.includes(".framework/") && !path.endsWith(".dylib") && !path.endsWith(appMetadata.executable_name)) {
-                                const data = await entry.async("uint8array");
-                                exportZip.file(path, data);
-                                exportedCount++;
-                            }
-                        }
-                    } else {
-                        // Backend only but without zip instance? We can fall back to manual instructions or alert
-                        throw new Error("클라이언트 Zip 핸들러가 활성화되지 않았습니다. 백엔드 폴더를 사용하십시오.");
-                    }
                 }
 
                 const content = await exportZip.generateAsync({ type: "blob" });
@@ -2506,16 +2325,12 @@
             contextText += "  DIRECTORY TREE STRUCTURE\n";
             contextText += "=====================================================================\n";
             
-            if (appMode === 'client' && clientZipInstance) {
+            if (clientZipInstance) {
                 for (const path of Object.keys(activeZipFiles)) {
                     if (skipFilters || (!path.includes(".framework/") && !path.endsWith(".dylib") && path !== appMetadata.executable_name)) {
                         contextText += `- ${path}\n`;
                     }
                 }
-            } else {
-                allFilePathsList.forEach(path => {
-                    contextText += `- ${path}\n`;
-                });
             }
             contextText += "\n\n";
 
@@ -2524,7 +2339,7 @@
             const codeExtensions = [".js", ".json", ".html", ".css", ".xml", ".plist", ".strings", ".stringsdict", ".md", ".txt", ".yaml", ".yml", ".sh"];
             let filesProcessed = 0;
 
-            if (appMode === 'client' && clientZipInstance) {
+            if (clientZipInstance) {
                 for (const [path, entry] of Object.entries(activeZipFiles)) {
                     const ext = path.substring(path.lastIndexOf('.')).toLowerCase();
                     const filename = path.split('/').pop();
@@ -2567,64 +2382,6 @@
                         contextText += "\n";
                     }
                 }
-            } else {
-                // Backend mode: Traverse tree recursively
-                showLoading(true, "AI 컨텍스트 수집 중...", "서버로부터 소스코드 파일들을 안전하게 병합하고 있습니다.");
-                
-                async function traverseAndCollect(nodes) {
-                    let collected = [];
-                    for (const node of nodes) {
-                        if (node.type === 'file') {
-                            const ext = node.name.substring(node.name.lastIndexOf('.')).toLowerCase();
-                            const isBulkyBinary = node.name.endsWith(".dylib") || node.name === appMetadata.executable_name || [".png", ".jpg", ".jpeg", ".gif", ".bmp", ".ico", ".svg", ".mp3", ".wav", ".mp4", ".ttf", ".otf", ".woff", ".woff2", ".pdf"].includes(ext);
-                            
-                            const shouldProcess = skipFilters
-                                ? !isBulkyBinary
-                                : (codeExtensions.includes(ext) || node.name === "main.jsbundle" || node.file_type === 'plist' || node.file_type === 'code') && !node.path.includes(".framework/") && !node.path.includes("/Frameworks/");
-                                
-                            if (shouldProcess) {
-                                collected.push(node);
-                            }
-                        } else if (node.type === 'directory' && node.children) {
-                            collected = collected.concat(await traverseAndCollect(node.children));
-                        }
-                    }
-                    return collected;
-                }
-
-                if (!currentTreeData) {
-                    throw new Error("No tree data available. Please reload.");
-                }
-                const codeFilesToFetch = await traverseAndCollect(currentTreeData);
-                
-                let count = 0;
-                for (const fileNode of codeFilesToFetch) {
-                    showLoading(true, "AI 컨텍스트 병합 중...", `소스코드 병합 진행 중: (${count + 1}/${codeFilesToFetch.length}) ${fileNode.name}`);
-                    contextText += `\n\n// =====================================================================\n`;
-                    contextText += `// FILE PATH: ${fileNode.path}\n`;
-                    contextText += `// =====================================================================\n\n`;
-                    
-                    try {
-                        const url = `${apiHost}/api/file?path=${encodeURIComponent(fileNode.path)}`;
-                        const response = await fetch(url);
-                        const data = await response.json();
-                        
-                        if (data.type === 'plist') {
-                            contextText += JSON.stringify(data.content, null, 2);
-                        } else {
-                            let text = data.content;
-                            if (fileNode.name === 'main.jsbundle') {
-                                try { text = js_beautify(text, { indent_size: 2 }); } catch(e) {}
-                            }
-                            contextText += text;
-                        }
-                        filesProcessed++;
-                    } catch (err) {
-                        contextText += `[Error fetching file: ${err.message}]`;
-                    }
-                    contextText += "\n";
-                    count++;
-                }
             }
 
             showLoading(false);
@@ -2640,7 +2397,7 @@
             const codeExtensions = [".js", ".json", ".html", ".css", ".xml", ".plist", ".strings", ".stringsdict", ".md", ".txt", ".yaml", ".yml", ".sh"];
             let filesProcessed = 0;
 
-            if (appMode === 'client' && clientZipInstance) {
+            if (clientZipInstance) {
                 for (const [path, entry] of Object.entries(activeZipFiles)) {
                     const ext = path.substring(path.lastIndexOf('.')).toLowerCase();
                     const filename = path.split('/').pop();
@@ -2673,58 +2430,6 @@
                         }
                         contextText += "\n\n";
                     }
-                }
-            } else {
-                // Backend mode: Traverse tree recursively
-                showLoading(true, "전체 소스코드 수집 중...", "서버로부터 소스코드 파일들을 안전하게 수집하고 있습니다.");
-                
-                async function traverseAndCollect(nodes) {
-                    let collected = [];
-                    for (const node of nodes) {
-                        if (node.type === 'file') {
-                            const ext = node.name.substring(node.name.lastIndexOf('.')).toLowerCase();
-                            const isBulkyBinary = node.name.endsWith(".dylib") || node.name === appMetadata.executable_name || [".png", ".jpg", ".jpeg", ".gif", ".bmp", ".ico", ".svg", ".mp3", ".wav", ".mp4", ".ttf", ".otf", ".woff", ".woff2", ".pdf"].includes(ext);
-                            
-                            if (!isBulkyBinary) {
-                                collected.push(node);
-                            }
-                        } else if (node.type === 'directory' && node.children) {
-                            collected = collected.concat(await traverseAndCollect(node.children));
-                        }
-                    }
-                    return collected;
-                }
-
-                if (!currentTreeData) {
-                    throw new Error("No tree data available. Please reload.");
-                }
-                const codeFilesToFetch = await traverseAndCollect(currentTreeData);
-                
-                let count = 0;
-                for (const fileNode of codeFilesToFetch) {
-                    showLoading(true, "전체 소스코드 병합 중...", `소스코드 병합 진행 중: (${count + 1}/${codeFilesToFetch.length}) ${fileNode.name}`);
-                    contextText += `// FILE: ${fileNode.path}\n`;
-                    
-                    try {
-                        const url = `${apiHost}/api/file?path=${encodeURIComponent(fileNode.path)}`;
-                        const response = await fetch(url);
-                        const data = await response.json();
-                        
-                        if (data.type === 'plist') {
-                            contextText += JSON.stringify(data.content, null, 2);
-                        } else {
-                            let text = data.content;
-                            if (fileNode.name === 'main.jsbundle') {
-                                try { text = js_beautify(text, { indent_size: 2 }); } catch(e) {}
-                            }
-                            contextText += text;
-                        }
-                        filesProcessed++;
-                    } catch (err) {
-                        contextText += `[Error fetching file: ${err.message}]`;
-                    }
-                    contextText += "\n\n";
-                    count++;
                 }
             }
 
@@ -2854,14 +2559,10 @@
             prompt += "  ALL DETECTED FILE PATHS (RESOURCE & CODE STRUCTURE)\n";
             prompt += "=====================================================================\n";
             
-            if (appMode === 'client' && clientZipInstance) {
+            if (clientZipInstance) {
                 for (const path of Object.keys(activeZipFiles)) {
                     prompt += `- ${path}\n`;
                 }
-            } else {
-                allFilePathsList.forEach(path => {
-                    prompt += `- ${path}\n`;
-                });
             }
             prompt += "\n";
 
