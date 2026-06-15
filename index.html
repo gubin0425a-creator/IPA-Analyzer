@@ -1144,10 +1144,17 @@
                     const part = parts[i];
                     const isLast = (i === parts.length - 1);
                     
+                    if (!currentLevel) {
+                        currentLevel = [];
+                    }
                     let existing = currentLevel.find(item => item.name === part);
                     
                     if (existing) {
                         if (!isLast) {
+                            if (!existing.children) {
+                                existing.type = "directory";
+                                existing.children = [];
+                            }
                             currentLevel = existing.children;
                         }
                     } else {
