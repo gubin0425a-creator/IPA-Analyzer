@@ -88,17 +88,17 @@
                     iOS IPA 파일을 소스코드로 해체하세요
                 </h2>
                 <p class="text-slate-400 max-w-xl mx-auto">
-                    IPA 파일을 브라우저에 끌어다 놓기만 하면 즉시 압축이 해제되고, 설정 파일(Info.plist) 분석, 리소스 에셋 추출, 웹 소스코드 복구 및 바이너리 텍스트(Strings) 디컴파일이 100% 로컬에서 실행됩니다.
+                    IPA 또는 APK 파일을 브라우저에 끌어다 놓기만 하면 즉시 압축이 해제되고, 설정 파일(Info.plist/AndroidManifest.xml) 분석, 리소스 에셋 추출, 웹 소스코드 복구 및 바이너리 텍스트(Strings) 디컴파일이 100% 로컬에서 실행됩니다.
                 </p>
             </div>
 
             <!-- DRAG AND DROP AREA -->
             <label id="dropZone" class="w-full border-2 border-dashed border-slate-700 hover:border-emerald-500/70 bg-slate-900/40 hover:bg-slate-900/60 transition-all rounded-2xl p-6 sm:p-12 flex flex-col items-center justify-center cursor-pointer group relative overflow-hidden">
-                <input type="file" id="ipaFileInput" accept=".ipa" class="hidden" />
+                <input type="file" id="ipaFileInput" accept=".ipa,.apk" class="hidden" />
                 <div class="bg-slate-800/80 group-hover:bg-emerald-500/10 p-5 rounded-2xl mb-4 text-slate-400 group-hover:text-emerald-400 transition-all shadow-inner border border-slate-700/50 group-hover:border-emerald-500/20">
                     <i class="fa-solid fa-cloud-arrow-up text-3xl sm:text-4xl animate-bounce"></i>
                 </div>
-                <p class="text-sm sm:text-base font-semibold text-slate-200 text-center">IPA 파일을 드래그하거나 터치하여 선택</p>
+                <p class="text-sm sm:text-base font-semibold text-slate-200 text-center">IPA 또는 APK 파일을 드래그하거나 터치하여 선택</p>
                 <p class="text-[10px] sm:text-xs text-slate-500 mt-2 text-center">최대 용량 제한 없음 • 100% Client-Side 안전 분석 보장</p>
                 
                 <!-- Glow Effect background -->
@@ -758,10 +758,10 @@
             e.preventDefault();
             dropZone.classList.remove('border-emerald-500', 'bg-emerald-500/10');
             const file = e.dataTransfer.files[0];
-            if (file && file.name.endsWith('.ipa')) {
+            if (file && (file.name.endsWith('.ipa') || file.name.endsWith('.apk'))) {
                 processIPAFile(file);
             } else {
-                alert('올바른 iOS IPA 파일을 업로드해 주십시오.');
+                alert('올바른 iOS IPA 또는 Android APK 파일을 업로드해 주십시오.');
             }
         });
 
@@ -801,12 +801,13 @@
             appIconPlaceholder.innerHTML = '<i class="fa-brands fa-apple text-3xl text-slate-400"></i>';
         });
 
-        // MAIN CONTROLLER FOR PROCESSING IPA
+        // MAIN CONTROLLER FOR PROCESSING IPA / APK
         async function processIPAFile(file) {
             logConsoleContainer.classList.remove('hidden');
-            addLog(`IPA 업로드 감지: ${file.name} (${(file.size / (1024 * 1024)).toFixed(2)} MB)`);
+            const isApk = file.name.endsWith('.apk');
+            addLog(`${isApk ? 'APK' : 'IPA'} 업로드 감지: ${file.name} (${(file.size / (1024 * 1024)).toFixed(2)} MB)`);
             
-            showLoading(true, "IPA 패키지 해독 중...", "파일 용량 및 로컬 사양에 따라 수초가 소요됩니다.");
+            showLoading(true, `${isApk ? 'APK' : 'IPA'} 패키지 해독 중...`, "파일 용량 및 로컬 사양에 따라 수초가 소요됩니다.");
 
             if (appMode === 'backend') {
                 await processWithBackend(file);
@@ -889,7 +890,8 @@
         // 2. CLIENT-ONLY DIRECT IN-BROWSER MODE
         // ============================================
         async function processWithClientOnly(file) {
-            addLog("Using high-performance Client-Side Javascript decoder...");
+            const isApk = file.name.endsWith('.apk');
+            addLog(`Using high-performance Client-Side Javascript decoder... (Format: ${isApk ? 'APK' : 'IPA'})`);
             extractionProgressBar.style.width = '10%';
             extractionProgressText.innerText = '10%';
 
@@ -904,91 +906,140 @@
                 extractionProgressText.innerText = '40%';
                 addLog(`Extracted zip mapping metadata. Found ${Object.keys(zip.files).length} files!`);
 
-                // Scan files and isolate payload
-                let filesList = Object.keys(zip.files);
                 let appFolderPath = "";
-                
-                // Look for .app folder in list
-                for (const path of filesList) {
-                    const match = path.match(/(Payload\/[^\/]+\.app)\//);
-                    if (match) {
-                        appFolderPath = match[1];
-                        break;
-                    }
-                }
+                let info = {};
+                let isApkApp = isApk;
 
-                if (!appFolderPath) {
-                    // Try to find any directory ending with .app recursively
+                if (isApkApp) {
+                    addLog("Detected Android APK. Parsing AndroidManifest.xml...");
+                    let manifestFile = zip.file("AndroidManifest.xml");
+                    if (manifestFile) {
+                        try {
+                            const arrayBuffer = await manifestFile.async("arraybuffer");
+                            const strings = parseAxmlStrings(arrayBuffer);
+                            info = parseApkMetadataFromStrings(strings, file.name);
+                            addLog("Successfully parsed AndroidManifest.xml String Pool!", "success");
+                        } catch (e) {
+                            addLog(`Binary AndroidManifest parsing error: ${e.message}`, "warn");
+                            info = {
+                                appName: file.name.replace(/\.[^/.]+$/, ""),
+                                bundleId: "Unknown",
+                                version: "Unknown",
+                                buildNum: "Unknown",
+                                minOs: "Unknown",
+                                sdkName: "Android SDK",
+                                permissions: []
+                            };
+                        }
+                    } else {
+                        addLog("AndroidManifest.xml not found in APK package!", "error");
+                        info = {
+                            appName: file.name.replace(/\.[^/.]+$/, ""),
+                            bundleId: "Unknown",
+                            version: "Unknown",
+                            buildNum: "Unknown",
+                            minOs: "Unknown",
+                            sdkName: "Android SDK",
+                            permissions: []
+                        };
+                    }
+                } else {
+                    // Scan files and isolate payload
+                    let filesList = Object.keys(zip.files);
                     for (const path of filesList) {
-                        const match = path.match(/([^\/]+\.app)\//);
+                        const match = path.match(/(Payload\/[^\/]+\.app)\//);
                         if (match) {
                             appFolderPath = match[1];
                             break;
                         }
                     }
-                }
 
-                if (!appFolderPath) {
-                    throw new Error("iOS 앱 번들 (.app) 디렉토리를 찾을 수 없습니다. 올바른 IPA 파일인지 확인하십시오.");
-                }
+                    if (!appFolderPath) {
+                        // Try to find any directory ending with .app recursively
+                        for (const path of filesList) {
+                            const match = path.match(/([^\/]+\.app)\//);
+                            if (match) {
+                                appFolderPath = match[1];
+                                break;
+                            }
+                        }
+                    }
 
-                addLog(`Detected primary iOS bundle path: ${appFolderPath}`, "success");
+                    if (!appFolderPath) {
+                        throw new Error("iOS 앱 번들 (.app) 디렉토리를 찾을 수 없습니다. 올바른 IPA 파일인지 확인하십시오.");
+                    }
 
-                // Parse Info.plist inside client-side zip
-                let infoPlistFile = zip.file(`${appFolderPath}/Info.plist`);
-                let info = {};
-                if (infoPlistFile) {
-                    addLog("Detected Info.plist. Decoding Apple Property List structure...");
-                    const arrayBuffer = await infoPlistFile.async("arraybuffer");
-                    
-                    if (plistParser) {
-                        try {
-                            info = plistParser(new Uint8Array(arrayBuffer));
-                            addLog("Successfully parsed XML/Binary Info.plist natively!", "success");
-                        } catch (e) {
-                            addLog(`Binary Plist parsing error: ${e.message}. Using regex fallback...`, "warn");
+                    addLog(`Detected primary iOS bundle path: ${appFolderPath}`, "success");
+
+                    // Parse Info.plist inside client-side zip
+                    let infoPlistFile = zip.file(`${appFolderPath}/Info.plist`);
+                    if (infoPlistFile) {
+                        addLog("Detected Info.plist. Decoding Apple Property List structure...");
+                        const arrayBuffer = await infoPlistFile.async("arraybuffer");
+                        
+                        if (plistParser) {
+                            try {
+                                info = plistParser(new Uint8Array(arrayBuffer));
+                                addLog("Successfully parsed XML/Binary Info.plist natively!", "success");
+                            } catch (e) {
+                                addLog(`Binary Plist parsing error: ${e.message}. Using regex fallback...`, "warn");
+                                info = fallbackPlistRegexParser(await infoPlistFile.async("text"));
+                            }
+                        } else {
+                            addLog("ESM plist-parser is missing. Using regex fallback...", "warn");
                             info = fallbackPlistRegexParser(await infoPlistFile.async("text"));
                         }
                     } else {
-                        addLog("ESM plist-parser is missing. Using regex fallback...", "warn");
-                        info = fallbackPlistRegexParser(await infoPlistFile.async("text"));
+                        addLog("Missing Info.plist in app payload bundle!", "error");
                     }
-                } else {
-                    addLog("Missing Info.plist in app payload bundle!", "error");
                 }
 
                 extractionProgressBar.style.width = '70%';
                 extractionProgressText.innerText = '70%';
 
                 // Framework Scanner
-                let framework = "Native (Swift/Objective-C)";
-                if (zip.file(`${appFolderPath}/main.jsbundle`) || zip.file(`${appFolderPath}/assets/main.jsbundle`)) {
-                    framework = "React Native";
-                } else if (zip.folder(`${appFolderPath}/flutter_assets`).length > 0) {
-                    framework = "Flutter";
-                } else if (zip.folder(`${appFolderPath}/www`).length > 0 || zip.folder(`${appFolderPath}/public`).length > 0) {
-                    framework = "Cordova / Capacitor / Ionic";
+                let framework = isApk ? "Native (Java/Kotlin)" : "Native (Swift/Objective-C)";
+                if (isApk) {
+                    if (zip.file("assets/index.android.bundle") || zip.file("assets/main.jsbundle")) {
+                        framework = "React Native";
+                    } else if (zip.folder("assets/flutter_assets").length > 0 || zip.file("assets/flutter_assets/AssetManifest.json")) {
+                        framework = "Flutter";
+                    } else if (zip.folder("assets/www").length > 0 || zip.folder("assets/public").length > 0) {
+                        framework = "Cordova / Capacitor / Ionic";
+                    }
+                } else {
+                    if (zip.file(`${appFolderPath}/main.jsbundle`) || zip.file(`${appFolderPath}/assets/main.jsbundle`)) {
+                        framework = "React Native";
+                    } else if (zip.folder(`${appFolderPath}/flutter_assets`).length > 0) {
+                        framework = "Flutter";
+                    } else if (zip.folder(`${appFolderPath}/www`).length > 0 || zip.folder(`${appFolderPath}/public`).length > 0) {
+                        framework = "Cordova / Capacitor / Ionic";
+                    }
                 }
 
                 // Metadata assembler
-                const appName = info.CFBundleDisplayName || info.CFBundleName || appFolderPath.split("/").pop().replace(".app", "");
-                const bundleId = info.CFBundleIdentifier || "Unknown";
-                const versionShort = info.CFBundleShortVersionString || "Unknown";
-                const buildNum = info.CFBundleVersion || "Unknown";
-                const minOs = info.MinimumOSVersion || "Unknown";
-                const executableName = info.CFBundleExecutable || "";
-                const sdkName = info.DTSDKName || "Unknown";
+                const appName = isApk ? (info.appName || file.name.replace(/\.[^/.]+$/, "")) : (info.CFBundleDisplayName || info.CFBundleName || appFolderPath.split("/").pop().replace(".app", ""));
+                const bundleId = isApk ? (info.bundleId || "Unknown") : (info.CFBundleIdentifier || "Unknown");
+                const versionShort = isApk ? (info.version || "Unknown") : (info.CFBundleShortVersionString || "Unknown");
+                const buildNum = isApk ? (info.buildNum || "Unknown") : (info.CFBundleVersion || "Unknown");
+                const minOs = isApk ? (info.minOs || "Unknown") : (info.MinimumOSVersion || "Unknown");
+                const executableName = isApk ? "classes.dex" : (info.CFBundleExecutable || "");
+                const sdkName = isApk ? (info.sdkName || "Android SDK") : (info.DTSDKName || "Unknown");
 
-                // NS Usage descriptions for permissions
+                // NS Usage descriptions for permissions (only for iOS)
                 let permissions = [];
-                for (const [key, val] of Object.entries(info)) {
-                    if (key.startsWith("NS") && key.endsWith("UsageDescription")) {
-                        const cleanName = key.replace("NS", "").replace("UsageDescription", "").replace(/(\w)([A-Z])/g, '$1 $2');
-                        permissions.push({
-                            key: key,
-                            name: cleanName,
-                            description: typeof val === 'string' ? val : JSON.stringify(val)
-                        });
+                if (isApk) {
+                    permissions = info.permissions || [];
+                } else {
+                    for (const [key, val] of Object.entries(info)) {
+                        if (key.startsWith("NS") && key.endsWith("UsageDescription")) {
+                            const cleanName = key.replace("NS", "").replace("UsageDescription", "").replace(/(\w)([A-Z])/g, '$1 $2');
+                            permissions.push({
+                                key: key,
+                                name: cleanName,
+                                description: typeof val === 'string' ? val : JSON.stringify(val)
+                            });
+                        }
                     }
                 }
 
@@ -1003,20 +1054,28 @@
                     "framework": framework,
                     "permissions": permissions,
                     "executable_name": executableName,
-                    "app_dir_name": appFolderPath.split("/").pop()
+                    "app_dir_name": isApk ? file.name : appFolderPath.split("/").pop()
                 };
 
-                // Filter zip files to compile tree relative to the .app folder
+                // Filter zip files to compile tree relative to the root/app folder
                 activeZipFiles = {};
                 allFilePathsList = [];
                 
-                const clientTreeData = [];
-                zip.folder(appFolderPath).forEach((relativePath, zipEntry) => {
-                    if (relativePath) {
-                        activeZipFiles[relativePath] = zipEntry;
-                        allFilePathsList.push(relativePath);
-                    }
-                });
+                if (isApk) {
+                    zip.forEach((relativePath, zipEntry) => {
+                        if (relativePath) {
+                            activeZipFiles[relativePath] = zipEntry;
+                            allFilePathsList.push(relativePath);
+                        }
+                    });
+                } else {
+                    zip.folder(appFolderPath).forEach((relativePath, zipEntry) => {
+                        if (relativePath) {
+                            activeZipFiles[relativePath] = zipEntry;
+                            allFilePathsList.push(relativePath);
+                        }
+                    });
+                }
 
                 // Generate hierarchical structured tree JSON
                 const treeJSON = buildClientTreeStructure(allFilePathsList);
@@ -1030,13 +1089,21 @@
                 setupDashboardView(appMetadata);
 
                 // Look for AppIcon in files list to render on client!
-                const iconPathInZip = findAppIcon(allFilePathsList);
+                const iconPathInZip = isApk ? findApkIcon(allFilePathsList) : findAppIcon(allFilePathsList);
                 if (iconPathInZip && activeZipFiles[iconPathInZip]) {
                     try {
                         const iconBase64 = await activeZipFiles[iconPathInZip].async("base64");
-                        appIconPlaceholder.innerHTML = `<img src="data:image/png;base64,${iconBase64}" class="w-full h-full object-cover rounded-2xl" />`;
+                        const iconExt = iconPathInZip.substring(iconPathInZip.lastIndexOf('.')).toLowerCase();
+                        const mimeType = iconExt === '.webp' ? 'image/webp' : 'image/png';
+                        appIconPlaceholder.innerHTML = `<img src="data:${mimeType};base64,${iconBase64}" class="w-full h-full object-cover rounded-2xl" />`;
                     } catch (e) {
                         console.error("Failed to load icon", e);
+                    }
+                } else {
+                    if (isApk) {
+                        appIconPlaceholder.innerHTML = '<i class="fa-brands fa-android text-3xl text-emerald-500 animate-pulse"></i>';
+                    } else {
+                        appIconPlaceholder.innerHTML = '<i class="fa-brands fa-apple text-3xl text-slate-400"></i>';
                     }
                 }
 
@@ -1055,7 +1122,7 @@
             } catch (err) {
                 showLoading(false);
                 addLog(`Client Decoupling Engine Error: ${err.message}`, "error");
-                alert(`IPA 파일의 로컬 압축 해제 중 치명적인 오류가 발생하였습니다: ${err.message}`);
+                alert(`앱 파일의 로컬 압축 해제 중 치명적인 오류가 발생하였습니다: ${err.message}`);
             }
         }
 
@@ -1188,7 +1255,12 @@
             dashboardFramework.innerText = metadata.framework;
             dashboardBundleId.innerText = metadata.bundle_id;
             dashboardVersion.innerText = `${metadata.version} (Build ${metadata.build_num})`;
-            dashboardMinOs.innerText = `iOS ${metadata.min_os}+`;
+            
+            if (metadata.min_os && (metadata.min_os.includes("Android") || metadata.min_os.includes("API"))) {
+                dashboardMinOs.innerText = metadata.min_os;
+            } else {
+                dashboardMinOs.innerText = `iOS ${metadata.min_os}+`;
+            }
 
             // Spec Info lists
             metaExecutableName.innerText = metadata.executable_name || "Unknown";
@@ -1212,7 +1284,7 @@
             } else {
                 permissionsTableBody.innerHTML = `
                     <tr>
-                        <td colspan="3" class="py-4 text-center text-slate-500">Info.plist에 정의된 보안 권한 요청 문구가 없습니다. (Native API를 사용하지 않거나, 자체 정의 라이브러리 탑재)</td>
+                        <td colspan="3" class="py-4 text-center text-slate-500">${(metadata.min_os && (metadata.min_os.includes("Android") || metadata.min_os.includes("API"))) ? 'AndroidManifest.xml에 정의된 보안 권한 요청 목록이 없습니다.' : 'Info.plist에 정의된 보안 권한 요청 문구가 없습니다. (Native API를 사용하지 않거나, 자체 정의 라이브러리 탑재)'}</td>
                     </tr>
                 `;
             }
@@ -1266,6 +1338,339 @@
                 }
             }
             return iconFile;
+        }
+
+        // Find promising app icon in Android file structure
+        function findApkIcon(filePaths) {
+            let candidates = filePaths.filter(p => p.includes("ic_launcher") && (p.endsWith(".png") || p.endsWith(".webp")));
+            if (candidates.length > 0) {
+                candidates.sort((a, b) => {
+                    const scoreA = (a.includes("mipmap") ? 2 : 0) + (a.includes("xxxhdpi") ? 3 : a.includes("xxhdpi") ? 2 : a.includes("xhdpi") ? 1 : 0);
+                    const scoreB = (b.includes("mipmap") ? 2 : 0) + (b.includes("xxxhdpi") ? 3 : b.includes("xxhdpi") ? 2 : b.includes("xhdpi") ? 1 : 0);
+                    return scoreB - scoreA;
+                });
+                return candidates[0];
+            }
+            let fallback = filePaths.find(p => (p.includes("icon.png") || p.includes("icon.webp")) && !p.includes("__MACOSX"));
+            return fallback || null;
+        }
+
+        // Parse Android Binary XML String Pool
+        function parseAxmlStrings(arrayBuffer) {
+            const view = new DataView(arrayBuffer);
+            if (view.byteLength < 40) return [];
+            const magic = view.getUint32(0, true);
+            if (magic !== 0x00080003) return [];
+            
+            let offset = 8;
+            let strings = [];
+            
+            while (offset + 8 <= view.byteLength) {
+                const chunkType = view.getUint32(offset, true);
+                const chunkSize = view.getUint32(offset + 4, true);
+                if (chunkSize <= 0 || offset + chunkSize > view.byteLength) break;
+                
+                if (chunkType === 0x001c0001) { // String Pool
+                    const stringCount = view.getUint32(offset + 8, true);
+                    const flags = view.getUint32(offset + 16, true);
+                    const stringStart = view.getUint32(offset + 20, true);
+                    const isUtf8 = (flags & 0x100) !== 0;
+                    const poolDataOffset = offset + stringStart;
+                    
+                    for (let i = 0; i < stringCount; i++) {
+                        const strOffsetOffset = offset + 28 + (i * 4);
+                        if (strOffsetOffset + 4 > view.byteLength) break;
+                        const strOffset = poolDataOffset + view.getUint32(strOffsetOffset, true);
+                        
+                        if (strOffset >= view.byteLength) continue;
+                        
+                        let str = "";
+                        if (isUtf8) {
+                            let lenOffset = strOffset;
+                            let rawLen = view.getUint8(lenOffset);
+                            if ((rawLen & 0x80) !== 0) {
+                                lenOffset++;
+                                rawLen = ((rawLen & 0x7F) << 8) | view.getUint8(lenOffset);
+                            }
+                            lenOffset++;
+                            
+                            let utf8Len = view.getUint8(lenOffset);
+                            if ((utf8Len & 0x80) !== 0) {
+                                lenOffset++;
+                                utf8Len = ((utf8Len & 0x7F) << 8) | view.getUint8(lenOffset);
+                            }
+                            lenOffset++;
+                            
+                            if (lenOffset + utf8Len <= view.byteLength) {
+                                const bytes = new Uint8Array(arrayBuffer, lenOffset, utf8Len);
+                                str = new TextDecoder("utf-8").decode(bytes);
+                            }
+                        } else {
+                            let lenOffset = strOffset;
+                            let charLen = view.getUint16(lenOffset, true);
+                            if ((charLen & 0x8000) !== 0) {
+                                lenOffset += 2;
+                                charLen = ((charLen & 0x7FFF) << 16) | view.getUint16(lenOffset, true);
+                            }
+                            lenOffset += 2;
+                            
+                            if (lenOffset + charLen * 2 <= view.byteLength) {
+                                str = new TextDecoder("utf-16le").decode(new Uint8Array(arrayBuffer, lenOffset, charLen * 2));
+                            }
+                        }
+                        strings.push(str);
+                    }
+                    break;
+                }
+                offset += chunkSize;
+            }
+            return strings;
+        }
+
+        // Parse APK metadata from AndroidManifest string pool
+        function parseApkMetadataFromStrings(strings, filename) {
+            let bundleId = "Unknown";
+            let appName = filename.replace(/\.[^/.]+$/, "");
+            let version = "Unknown";
+            let buildNum = "Unknown";
+            let minOs = "Unknown";
+            let sdkName = "Android SDK";
+            let permissions = [];
+            
+            const packageRegex = /^[a-zA-Z][a-zA-Z0-9_]*(\.[a-zA-Z][a-zA-Z0-9_]*){2,}$/;
+            const pkgCandidates = strings.filter(s => 
+                packageRegex.test(s) && 
+                !s.startsWith("android.") && 
+                !s.startsWith("com.android.") &&
+                !s.includes("/") &&
+                !s.includes(":") &&
+                !s.includes("schema")
+            );
+            if (pkgCandidates.length > 0) {
+                bundleId = pkgCandidates[0];
+            }
+            
+            strings.forEach(s => {
+                if (s.startsWith("android.permission.")) {
+                    const permName = s.replace("android.permission.", "");
+                    const cleanName = permName.replace(/_/g, " ").toLowerCase();
+                    const formattedName = cleanName.replace(/\b\w/g, c => c.toUpperCase());
+                    
+                    if (!permissions.some(p => p.key === s)) {
+                        permissions.push({
+                            key: s,
+                            name: formattedName,
+                            description: `Android Permission: ${permName}`
+                        });
+                    }
+                }
+            });
+            
+            const versionRegex = /^\d+(\.\d+){1,3}(-[a-zA-Z0-9.]+)?$/;
+            const verCandidates = strings.filter(s => versionRegex.test(s));
+            if (verCandidates.length > 0) {
+                version = verCandidates[0];
+            }
+            
+            const buildCandidates = strings.filter(s => /^\d{1,8}$/.test(s));
+            if (buildCandidates.length > 0) {
+                buildNum = buildCandidates[buildCandidates.length - 1];
+            }
+            
+            const minSdkCandidates = strings.filter(s => /^\d+$/.test(s) && parseInt(s) >= 9 && parseInt(s) <= 35);
+            if (minSdkCandidates.length > 0) {
+                minOs = "Android API " + minSdkCandidates[0];
+            }
+            
+            return {
+                bundleId,
+                appName,
+                version,
+                buildNum,
+                minOs,
+                sdkName,
+                permissions
+            };
+        }
+
+        // Decompile Android Binary XML (AXML) into normal XML text
+        function decompileAxml(arrayBuffer) {
+            const view = new DataView(arrayBuffer);
+            if (view.byteLength < 8) return "[Error: File too small to be binary XML]";
+            
+            const magic = view.getUint32(0, true);
+            if (magic !== 0x00080003) {
+                return new TextDecoder("utf-8").decode(new Uint8Array(arrayBuffer));
+            }
+            
+            let offset = 8;
+            let strings = [];
+            const nsMap = {};
+            
+            while (offset + 8 <= view.byteLength) {
+                const chunkType = view.getUint32(offset, true);
+                const chunkSize = view.getUint32(offset + 4, true);
+                if (chunkSize <= 0 || offset + chunkSize > view.byteLength) break;
+                
+                if (chunkType === 0x001c0001) {
+                    const stringCount = view.getUint32(offset + 8, true);
+                    const flags = view.getUint32(offset + 16, true);
+                    const stringStart = view.getUint32(offset + 20, true);
+                    const isUtf8 = (flags & 0x100) !== 0;
+                    const poolDataOffset = offset + stringStart;
+                    
+                    for (let i = 0; i < stringCount; i++) {
+                        const strOffsetOffset = offset + 28 + (i * 4);
+                        const strOffset = poolDataOffset + view.getUint32(strOffsetOffset, true);
+                        
+                        let str = "";
+                        if (isUtf8) {
+                            let lenOffset = strOffset;
+                            let rawLen = view.getUint8(lenOffset);
+                            if ((rawLen & 0x80) !== 0) {
+                                lenOffset++;
+                                rawLen = ((rawLen & 0x7F) << 8) | view.getUint8(lenOffset);
+                            }
+                            lenOffset++;
+                            let utf8Len = view.getUint8(lenOffset);
+                            if ((utf8Len & 0x80) !== 0) {
+                                lenOffset++;
+                                utf8Len = ((utf8Len & 0x7F) << 8) | view.getUint8(lenOffset);
+                            }
+                            lenOffset++;
+                            const bytes = new Uint8Array(arrayBuffer, lenOffset, utf8Len);
+                            str = new TextDecoder("utf-8").decode(bytes);
+                        } else {
+                            let lenOffset = strOffset;
+                            let charLen = view.getUint16(lenOffset, true);
+                            if ((charLen & 0x8000) !== 0) {
+                                lenOffset += 2;
+                                charLen = ((charLen & 0x7FFF) << 16) | view.getUint16(lenOffset, true);
+                            }
+                            lenOffset += 2;
+                            str = new TextDecoder("utf-16le").decode(new Uint8Array(arrayBuffer, lenOffset, charLen * 2));
+                        }
+                        strings.push(str);
+                    }
+                    break;
+                }
+                offset += chunkSize;
+            }
+            
+            offset = 8;
+            if (offset + 8 <= view.byteLength) {
+                const chunkType = view.getUint32(offset, true);
+                if (chunkType === 0x001c0001) {
+                    offset += view.getUint32(offset + 4, true);
+                }
+            }
+            if (offset + 8 <= view.byteLength) {
+                const chunkType = view.getUint32(offset, true);
+                if (chunkType === 0x00080180) {
+                    offset += view.getUint32(offset + 4, true);
+                }
+            }
+            
+            let xml = '<?xml version="1.0" encoding="utf-8"?>\n';
+            let indent = 0;
+            const getIndent = () => '  '.repeat(indent);
+            
+            while (offset + 8 <= view.byteLength) {
+                const chunkType = view.getUint32(offset, true);
+                const chunkSize = view.getUint32(offset + 4, true);
+                if (chunkSize <= 0 || offset + chunkSize > view.byteLength) break;
+                
+                switch (chunkType) {
+                    case 0x00100100: {
+                        const prefixIdx = view.getInt32(offset + 16, true);
+                        const uriIdx = view.getInt32(offset + 20, true);
+                        if (prefixIdx !== -1 && uriIdx !== -1) {
+                            nsMap[strings[uriIdx]] = strings[prefixIdx];
+                        }
+                        break;
+                    }
+                    case 0x00100102: {
+                        const nameIdx = view.getInt32(offset + 20, true);
+                        const name = strings[nameIdx];
+                        const attributeStart = view.getUint16(offset + 24, true);
+                        const attributeSize = view.getUint16(offset + 26, true);
+                        const attributeCount = view.getUint16(offset + 28, true);
+                        
+                        xml += getIndent() + `<${name}`;
+                        indent++;
+                        
+                        if (indent === 1) {
+                            for (const [uri, prefix] of Object.entries(nsMap)) {
+                                xml += ` xmlns:${prefix}="${uri}"`;
+                            }
+                        }
+                        
+                        let attrOffset = offset + attributeStart;
+                        for (let i = 0; i < attributeCount; i++) {
+                            const attrUriIdx = view.getInt32(attrOffset, true);
+                            const attrNameIdx = view.getInt32(attrOffset + 4, true);
+                            const attrValueIdx = view.getInt32(attrOffset + 8, true);
+                            const attrType = view.getUint32(attrOffset + 12, true);
+                            const attrData = view.getUint32(attrOffset + 16, true);
+                            const attrName = strings[attrNameIdx];
+                            let attrValue = "";
+                            
+                            if (attrValueIdx !== -1) {
+                                attrValue = strings[attrValueIdx];
+                            } else {
+                                if (attrType === 0x03000008) {
+                                    attrValue = strings[attrData];
+                                } else if (attrType === 0x12000008) {
+                                    attrValue = attrData !== 0 ? "true" : "false";
+                                } else if (attrType === 0x10000008 || attrType === 0x11000008) {
+                                    attrValue = attrType === 0x11000008 ? "0x" + attrData.toString(16) : attrData.toString();
+                                } else if (attrType === 0x01000008) {
+                                    attrValue = "@resource/0x" + attrData.toString(16);
+                                } else {
+                                    attrValue = attrData.toString();
+                                }
+                            }
+                            
+                            let prefix = "";
+                            if (attrUriIdx !== -1) {
+                                const nsUri = strings[attrUriIdx];
+                                if (nsMap[nsUri]) {
+                                    prefix = nsMap[nsUri] + ":";
+                                } else {
+                                    if (nsUri === "http://schemas.android.com/apk/res/android") {
+                                        prefix = "android:";
+                                    } else if (nsUri.endsWith("res-auto")) {
+                                        prefix = "app:";
+                                    } else {
+                                        const parts = nsUri.split("/");
+                                        prefix = (parts[parts.length - 1] || "ns") + ":";
+                                    }
+                                }
+                            }
+                            xml += ` ${prefix}${attrName}="${attrValue}"`;
+                            attrOffset += attributeSize;
+                        }
+                        xml += `>\n`;
+                        break;
+                    }
+                    case 0x00100103: {
+                        indent--;
+                        const nameIdx = view.getInt32(offset + 20, true);
+                        const name = strings[nameIdx];
+                        xml += getIndent() + `</${name}>\n`;
+                        break;
+                    }
+                    case 0x00100104: {
+                        const textIdx = view.getInt32(offset + 16, true);
+                        if (textIdx !== -1) {
+                            xml += getIndent() + `${strings[textIdx]}\n`;
+                        }
+                        break;
+                    }
+                }
+                offset += chunkSize;
+            }
+            return xml;
         }
 
         // ============================================
@@ -1514,10 +1919,11 @@
                             "type": "plist",
                             "content": parsedData
                         }, fileNode.name);
-                    } else if (fileNode.name === appMetadata.executable_name) {
-                        // Native Mach-O compiled binary in client-side mode
+                    } else if (fileNode.name === appMetadata.executable_name || fileNode.name.endsWith('.dex') || fileNode.name.endsWith('.so')) {
+                        // Native Mach-O / DEX / Shared Library compiled binary in client-side mode
                         showLoading(false);
-                        const confirmExtract = confirm("선택하신 파일은 iOS 네이티브 실행 바이너리 기계어 파일입니다.\n클라이언트 모드에서 바이너리 크기가 크면 브라우저가 일시적으로 느려질 수 있습니다.\n문자열(Strings) 스캔을 실행하시겠습니까?");
+                        const fileLabel = fileNode.name.endsWith('.dex') ? 'Android DEX 바이트코드' : fileNode.name.endsWith('.so') ? 'Android 공유 라이브러리(.so) 바이너리' : 'iOS 네이티브 실행 바이너리 기계어';
+                        const confirmExtract = confirm(`선택하신 파일은 ${fileLabel} 파일입니다.\n클라이언트 모드에서 바이너리 크기가 크면 브라우저가 일시적으로 느려질 수 있습니다.\n문자열(Strings) 스캔을 실행하시겠습니까?`);
                         if (confirmExtract) {
                             showLoading(true, "바이너리 해독 중...", "기계어 바이너리 텍스트 데이터를 문자열로 변환하고 있습니다.");
                             const arrayBuffer = await zipEntry.async("arraybuffer");
@@ -1532,6 +1938,33 @@
                             viewerEmptyState.classList.remove('hidden');
                             viewerActiveState.classList.add('hidden');
                         }
+                    } else if (fileNode.name.endsWith('.xml')) {
+                        // Android Binary XML decompile support
+                        const arrayBuffer = await zipEntry.async("arraybuffer");
+                        let isBinaryAxml = false;
+                        if (arrayBuffer.byteLength >= 4) {
+                            const view = new DataView(arrayBuffer);
+                            if (view.getUint32(0, true) === 0x00080003) {
+                                isBinaryAxml = true;
+                            }
+                        }
+                        
+                        let xmlContent = "";
+                        if (isBinaryAxml) {
+                            try {
+                                xmlContent = decompileAxml(arrayBuffer);
+                            } catch (e) {
+                                addLog(`Binary XML decompilation failed: ${e.message}`, "error");
+                                xmlContent = new TextDecoder("utf-8").decode(new Uint8Array(arrayBuffer));
+                            }
+                        } else {
+                            xmlContent = new TextDecoder("utf-8").decode(new Uint8Array(arrayBuffer));
+                        }
+                        
+                        renderFileInViewer({
+                            "type": "text",
+                            "content": xmlContent
+                        }, fileNode.name);
                     } else {
                         // Regular text files
                         const textContent = await zipEntry.async("text");
