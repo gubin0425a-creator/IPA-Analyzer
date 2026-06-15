@@ -66,10 +66,10 @@
         <div class="flex items-center space-x-2 sm:space-x-4 text-xs sm:text-sm">
             <div id="connectionStatus" class="flex items-center space-x-1.5 sm:space-x-2 bg-slate-800/80 px-2.5 py-1 sm:px-3 sm:py-1.5 rounded-lg border border-slate-700/50">
                 <span class="relative flex h-2 w-2 sm:h-2.5 sm:w-2.5">
-                    <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-amber-400 opacity-75"></span>
-                    <span id="statusIndicator" class="relative inline-flex rounded-full h-2 w-2 sm:h-2.5 sm:w-2.5 bg-amber-500"></span>
+                    <span id="statusPing" class="animate-ping absolute inline-flex h-full w-full rounded-full bg-cyan-400 opacity-75"></span>
+                    <span id="statusIndicator" class="relative inline-flex rounded-full h-2 w-2 sm:h-2.5 sm:w-2.5 bg-cyan-500 animate-pulse"></span>
                 </span>
-                <span id="statusText" class="text-[10px] sm:text-xs font-semibold text-amber-400">서버 연결...</span>
+                <span id="statusText" class="text-[10px] sm:text-xs font-semibold text-cyan-400">웹 로컬 단독 실행 모드</span>
             </div>
             <button id="resetAppBtn" class="hidden px-2.5 py-1 sm:px-3 sm:py-1.5 bg-rose-600/10 text-rose-400 border border-rose-500/20 rounded-lg hover:bg-rose-600 hover:text-white transition-all text-[10px] sm:text-xs font-semibold flex items-center gap-1 sm:gap-1.5">
                 <i class="fa-solid fa-rotate-left"></i> <span class="hidden sm:inline">다른 IPA 분석하기</span><span class="inline sm:hidden">리셋</span>
@@ -534,7 +534,7 @@
         // Global State variables
         let appMode = 'client'; // 'client' or 'backend'
         const PORT = 8080;
-        const apiHost = `http://localhost:${PORT}`;
+        const apiHost = `http://${window.location.hostname || 'localhost'}:${PORT}`;
         
         let clientZipInstance = null; // JSZip instance for client-side mode
         let activeZipFiles = {}; // Path -> JSZip Object mapping
@@ -633,28 +633,53 @@
 
         // Initial launch logic: Handshake with python backend
         async function checkBackendConnection() {
+            const host = window.location.hostname;
+            const isLocal = host === 'localhost' || host === '127.0.0.1' || host.startsWith('192.168.') || host.startsWith('10.') || host === '';
+            
+            if (!isLocal) {
+                appMode = 'client';
+                statusIndicator.className = "relative inline-flex rounded-full h-2 w-2 sm:h-2.5 sm:w-2.5 bg-cyan-500 animate-pulse";
+                const statusPing = document.getElementById('statusPing');
+                if (statusPing) {
+                    statusPing.className = "animate-ping absolute inline-flex h-full w-full rounded-full bg-cyan-400 opacity-75";
+                }
+                statusText.innerText = "웹 로컬 단독 실행 모드";
+                statusText.className = "text-[10px] sm:text-xs font-semibold text-cyan-400";
+                stringsServerAlert.classList.remove('hidden');
+                addLog("Running on remote host. Defaulting immediately to Web Local Standalone mode.");
+                return;
+            }
+
             try {
                 const response = await fetch(`${apiHost}/api/status`, { signal: AbortSignal.timeout(1500) });
                 if (response.ok) {
                     const data = await response.json();
                     if (data.status === "ok") {
                         appMode = 'backend';
-                        statusIndicator.className = "relative inline-flex rounded-full h-2.5 w-2.5 bg-emerald-500";
+                        statusIndicator.className = "relative inline-flex rounded-full h-2 w-2 sm:h-2.5 sm:w-2.5 bg-emerald-500";
+                        const statusPing = document.getElementById('statusPing');
+                        if (statusPing) {
+                            statusPing.className = "animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75";
+                        }
                         statusText.innerText = "Python 백엔드 연결 완료";
-                        statusText.className = "text-xs font-semibold text-emerald-400";
+                        statusText.className = "text-[10px] sm:text-xs font-semibold text-emerald-400";
                         stringsServerAlert.classList.add('hidden');
                         addLog("Connected to high-performance local Python backend.");
                         return;
                     }
                 }
             } catch (err) {
-                // Connection failed, default to client mode
+                // Connection failed, default is already client mode
             }
             
             appMode = 'client';
-            statusIndicator.className = "relative inline-flex rounded-full h-2.5 w-2.5 bg-cyan-500 animate-pulse";
+            statusIndicator.className = "relative inline-flex rounded-full h-2 w-2 sm:h-2.5 sm:w-2.5 bg-cyan-500 animate-pulse";
+            const statusPing = document.getElementById('statusPing');
+            if (statusPing) {
+                statusPing.className = "animate-ping absolute inline-flex h-full w-full rounded-full bg-cyan-400 opacity-75";
+            }
             statusText.innerText = "웹 로컬 단독 실행 모드";
-            statusText.className = "text-xs font-semibold text-cyan-400";
+            statusText.className = "text-[10px] sm:text-xs font-semibold text-cyan-400";
             stringsServerAlert.classList.remove('hidden');
             addLog("Standard Client-only mode activated. ZIP unzipping and binary-plist parsing run natively in-browser.");
         }
