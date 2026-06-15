@@ -275,12 +275,17 @@
                                 </div>
                                 <div>
                                     <h4 class="text-sm font-bold text-slate-100">모든 소스코드 및 에셋 일괄 추출</h4>
-                                    <p class="text-xs text-slate-400 mt-0.5">IPA 내의 모든 웹 소스코드, 이미지 리소스, 번역 텍스트, 설정 파일을 하나로 묶어 ZIP으로 소장합니다.</p>
+                                    <p class="text-xs text-slate-400 mt-0.5">IPA 내의 모든 웹 소스코드, 이미지 리소스, 번역 텍스트, 설정 파일을 하나로 묶어 ZIP으로 소장하거나 로컬 폴더에 바로 저장합니다.</p>
                                 </div>
                             </div>
-                            <button id="exportAllCodeBtn" class="px-5 py-2.5 bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-extrabold text-xs tracking-wide rounded-xl shadow-lg shadow-emerald-500/10 hover:shadow-emerald-500/25 transition-all flex items-center gap-2">
-                                <i class="fa-solid fa-file-export text-sm"></i> 코드/리소스 일괄 ZIP 다운로드
-                            </button>
+                            <div class="flex flex-wrap items-center gap-2.5 w-full md:w-auto shrink-0 justify-end">
+                                <button id="exportAllCodeBtn" class="px-5 py-2.5 bg-slate-800 hover:bg-slate-700 text-slate-100 border border-slate-700 font-extrabold text-xs tracking-wide rounded-xl shadow-lg transition-all flex items-center gap-2 cursor-pointer">
+                                    <i class="fa-solid fa-file-zipper text-sm"></i> ZIP 다운로드
+                                </button>
+                                <button id="exportToLocalFolderBtn" class="px-5 py-2.5 bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-extrabold text-xs tracking-wide rounded-xl shadow-lg shadow-emerald-500/10 hover:shadow-emerald-500/25 transition-all flex items-center gap-2 cursor-pointer">
+                                    <i class="fa-solid fa-folder-open text-sm"></i> 로컬 폴더로 직접 추출 (복사)
+                                </button>
+                            </div>
                         </div>
 
                         <!-- AI VIBE CODING CONTEXT BUILDER CARD -->
@@ -614,6 +619,7 @@
         const stringsSearchInput = document.getElementById('stringsSearchInput');
         const stringsListArea = document.getElementById('stringsListArea');
         const exportAllCodeBtn = document.getElementById('exportAllCodeBtn');
+        const exportToLocalFolderBtn = document.getElementById('exportToLocalFolderBtn');
         const copyAiPromptBtn = document.getElementById('copyAiPromptBtn');
         const copyAiPromptFullBtn = document.getElementById('copyAiPromptFullBtn');
         const copyRecreationPromptBtn = document.getElementById('copyRecreationPromptBtn');
@@ -1933,6 +1939,79 @@
                 showLoading(false);
                 alert("일괄 다운로드 중 오류 발생: " + err.message);
                 addLog(`Export Zip Failed: ${err.message}`, "error");
+            }
+        });
+
+        // RECURSIVE WRITER TO LOCAL DIRECTORY VIA FILE SYSTEM ACCESS API
+        async function writeZipToDirectory(zipInstance, dirHandle) {
+            let filesCount = 0;
+            const entries = Object.entries(activeZipFiles);
+            
+            for (const [path, entry] of entries) {
+                if (path.endsWith("/")) continue;
+                
+                const isBulky = path.includes(".framework/") || path.includes("/Frameworks/") || path.endsWith(".dylib") || path.endsWith(appMetadata.executable_name);
+                if (isBulky) continue;
+                
+                const parts = path.split("/");
+                let currentDirHandle = dirHandle;
+                
+                // Create subdirectories
+                for (let i = 0; i < parts.length - 1; i++) {
+                    currentDirHandle = await currentDirHandle.getDirectoryHandle(parts[i], { create: true });
+                }
+                
+                const filename = parts[parts.length - 1];
+                const fileHandle = await currentDirHandle.getFileHandle(filename, { create: true });
+                const writable = await fileHandle.createWritable();
+                
+                const fileData = await entry.async("uint8array");
+                await writable.write(fileData);
+                await writable.close();
+                
+                filesCount++;
+                showLoading(true, "로컬 폴더에 소스코드 복사 중...", `진행 중: (${filesCount}/${entries.length}) ${path}`);
+            }
+            
+            return filesCount;
+        }
+
+        // EXPORT DIRECTLY TO LOCAL FOLDER USING FILE SYSTEM ACCESS API
+        exportToLocalFolderBtn.addEventListener('click', async () => {
+            if (!clientZipInstance) {
+                alert("디컴파일된 파일이 메모리에 존재하지 않습니다. 먼저 IPA 파일을 업로드해 주세요.");
+                return;
+            }
+            
+            if (!window.showDirectoryPicker) {
+                alert("사용 중인 브라우저가 '로컬 폴더 내보내기' API를 지원하지 않습니다.\n크롬(Chrome)이나 엣지(Edge) 브라우저를 사용하시거나, ZIP 다운로드를 이용해 주세요.");
+                return;
+            }
+            
+            try {
+                // Ask user to pick a folder
+                const dirHandle = await window.showDirectoryPicker({
+                    mode: 'readwrite',
+                    startIn: 'desktop'
+                });
+                
+                addLog("User selected folder for direct decompile output.");
+                showLoading(true, "로컬 폴더에 소스코드 복사 중...", "선택하신 로컬 폴더에 디컴파일된 소스코드 및 에셋 파일을 복사하여 쓰는 중입니다.");
+                
+                const writtenCount = await writeZipToDirectory(clientZipInstance, dirHandle);
+                
+                showLoading(false);
+                addLog(`Successfully copied ${writtenCount} files directly to your chosen local folder!`, "success");
+                alert(`성공적으로 모든 소스코드와 에셋(${writtenCount}개 파일)을 선택하신 로컬 폴더로 복사(추출)했습니다!`);
+                
+            } catch (err) {
+                showLoading(false);
+                if (err.name === 'AbortError') {
+                    addLog("Directory picker was cancelled by user.", "warn");
+                } else {
+                    alert("로컬 폴더 복사 중 오류 발생: " + err.message);
+                    addLog(`Local Folder Export Failed: ${err.message}`, "error");
+                }
             }
         });
 
