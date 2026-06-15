@@ -1950,9 +1950,6 @@
             for (const [path, entry] of entries) {
                 if (path.endsWith("/")) continue;
                 
-                const isBulky = path.includes(".framework/") || path.includes("/Frameworks/") || path.endsWith(".dylib") || path.endsWith(appMetadata.executable_name);
-                if (isBulky) continue;
-                
                 const parts = path.split("/");
                 let currentDirHandle = dirHandle;
                 
