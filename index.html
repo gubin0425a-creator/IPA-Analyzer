@@ -522,13 +522,14 @@
     <script type="module">
         // Import robust plist parser from ES module!
         let plistParser = null;
-        try {
-            const plistModule = await import('https://esm.sh/@plist/parse');
-            plistParser = plistModule.parse;
-            console.log("Successfully loaded ESM plistParser from esm.sh");
-        } catch (err) {
-            console.error("Failed to dynamically import @plist/parse. Falling back to XML-only plist parsing.", err);
-        }
+        import('https://esm.sh/@plist/parse')
+            .then(plistModule => {
+                plistParser = plistModule.parse;
+                console.log("Successfully loaded ESM plistParser from esm.sh");
+            })
+            .catch(err => {
+                console.error("Failed to dynamically import @plist/parse. Falling back to XML-only plist parsing.", err);
+            });
 
         // Global State variables
         let appMode = 'client'; // 'client' or 'backend'
