@@ -544,6 +544,36 @@
         
         let activeMobileView = 'tree'; // 'tree' or 'content'
 
+        // Robust Clipboard Copy helper (works on secure/insecure contexts and older browsers/mobile webviews)
+        function copyTextToClipboard(text) {
+            if (navigator.clipboard && window.isSecureContext) {
+                return navigator.clipboard.writeText(text);
+            } else {
+                return new Promise((resolve, reject) => {
+                    try {
+                        const textArea = document.createElement("textarea");
+                        textArea.value = text;
+                        textArea.style.top = "0";
+                        textArea.style.left = "0";
+                        textArea.style.position = "fixed";
+                        textArea.style.opacity = "0";
+                        document.body.appendChild(textArea);
+                        textArea.focus();
+                        textArea.select();
+                        const successful = document.execCommand('copy');
+                        document.body.removeChild(textArea);
+                        if (successful) {
+                            resolve();
+                        } else {
+                            reject(new Error("Copy command failed"));
+                        }
+                    } catch (err) {
+                        reject(err);
+                    }
+                });
+            }
+        }
+
         // DOM elements
         const sidebarPanel = document.getElementById('sidebarPanel');
         const mainContentPanel = document.getElementById('mainContentPanel');
@@ -2094,7 +2124,7 @@
         // UNIFIED COPY TO CLIPBOARD
         function copyActiveContent(btnElement) {
             if (!activeFileContent) return;
-            navigator.clipboard.writeText(activeFileContent)
+            copyTextToClipboard(activeFileContent)
                 .then(() => {
                     const originalHTML = btnElement.innerHTML;
                     btnElement.innerHTML = `<i class="fa-solid fa-check text-emerald-400"></i> 복사 완료`;
@@ -2159,7 +2189,7 @@
                 : currentExtractedBinaryStrings.filter(s => s.toLowerCase().includes(searchVal));
                 
             const textToCopy = filtered.join('\n');
-            navigator.clipboard.writeText(textToCopy)
+            copyTextToClipboard(textToCopy)
                 .then(() => {
                     const originalHTML = copyStringsBtn.innerHTML;
                     copyStringsBtn.innerHTML = `<i class="fa-solid fa-check text-emerald-400"></i> 복사 완료`;
@@ -2445,7 +2475,7 @@
             
             try {
                 const unifiedCode = await buildAiUnifiedContext(false);
-                await navigator.clipboard.writeText(unifiedCode);
+                await copyTextToClipboard(unifiedCode);
                 
                 const originalText = copyAiPromptBtn.innerHTML;
                 copyAiPromptBtn.innerHTML = `<i class="fa-solid fa-check text-emerald-400 animate-bounce"></i> 통합 복사 완료!`;
@@ -2470,7 +2500,7 @@
             
             try {
                 const unifiedCode = await buildAiUnifiedContext(true);
-                await navigator.clipboard.writeText(unifiedCode);
+                await copyTextToClipboard(unifiedCode);
                 
                 const originalText = copyAiPromptFullBtn.innerHTML;
                 copyAiPromptFullBtn.innerHTML = `<i class="fa-solid fa-check text-emerald-400 animate-bounce"></i> 전체 복사 완료!`;
@@ -2495,7 +2525,7 @@
             
             try {
                 const rawSource = await buildRawSourceCode();
-                await navigator.clipboard.writeText(rawSource);
+                await copyTextToClipboard(rawSource);
                 
                 const originalText = copyRawSourceBtn.innerHTML;
                 copyRawSourceBtn.innerHTML = `<i class="fa-solid fa-check text-emerald-400 animate-bounce"></i> 복사 완료!`;
@@ -2584,7 +2614,7 @@
             
             try {
                 const prompt = await buildAppRecreationPrompt();
-                await navigator.clipboard.writeText(prompt);
+                await copyTextToClipboard(prompt);
                 
                 const originalText = copyRecreationPromptBtn.innerHTML;
                 copyRecreationPromptBtn.innerHTML = `<i class="fa-solid fa-check text-emerald-400"></i> 복사 완료!`;
