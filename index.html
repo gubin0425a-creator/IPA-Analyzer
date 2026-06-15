@@ -172,6 +172,10 @@
 
                 <!-- DIRECTORY TREE CONTROLS -->
                 <div class="p-3 border-b border-slate-800 space-y-2">
+                    <!-- Copy App Recreation Prompt Button -->
+                    <button id="copyRecreationPromptBtn" class="w-full py-2 bg-gradient-to-r from-violet-600 to-indigo-600 hover:from-violet-500 hover:to-indigo-500 text-white rounded-lg text-[11px] font-bold transition-all flex items-center justify-center gap-1.5 shadow-md shadow-indigo-950/20 hover:scale-[1.02] active:scale-[0.98] cursor-pointer">
+                        <i class="fa-solid fa-wand-magic-sparkles animate-pulse text-xs"></i> 전체 리소스 복원 프롬프트 복사
+                    </button>
                     <!-- File Search -->
                     <div class="relative">
                         <i class="fa-solid fa-magnifying-glass absolute left-3 top-2.5 text-xs text-slate-500"></i>
@@ -291,9 +295,12 @@
                                         <p class="text-xs text-slate-400 mt-0.5">IPA 내의 모든 텍스트 소스코드(HTML, JS, CSS, JSON, Plist 등)를 하나의 파일로 병합하여 AI(Claude, ChatGPT, Cursor) 프롬프트에 바로 붙여넣을 수 있게 가공합니다.</p>
                                     </div>
                                 </div>
-                                <div class="flex items-center gap-2 w-full md:w-auto shrink-0">
+                                <div class="flex flex-wrap items-center gap-2 w-full md:w-auto shrink-0">
                                     <button id="copyAiPromptBtn" class="flex-1 md:flex-none px-4 py-2.5 bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-xs rounded-xl shadow-lg shadow-indigo-600/10 transition-all flex items-center justify-center gap-1.5 cursor-pointer">
                                         <i class="fa-solid fa-clipboard"></i> AI 프롬프트용 전체 복사
+                                    </button>
+                                    <button id="copyAiPromptFullBtn" class="flex-1 md:flex-none px-4 py-2.5 bg-purple-600 hover:bg-purple-500 text-white font-bold text-xs rounded-xl shadow-lg shadow-purple-600/10 transition-all flex items-center justify-center gap-1.5 cursor-pointer">
+                                        <i class="fa-solid fa-copy"></i> 무필터 전체 복사 (토큰절약 없음)
                                     </button>
                                     <button id="downloadAiPromptBtn" class="flex-1 md:flex-none px-4 py-2.5 bg-slate-800 hover:bg-slate-700 text-slate-100 font-bold text-xs rounded-xl border border-slate-700 transition-all flex items-center justify-center gap-1.5 cursor-pointer">
                                         <i class="fa-solid fa-file-lines"></i> 통합 파일(.txt) 다운로드
@@ -387,8 +394,17 @@
                         <div id="viewerActiveState" class="hidden flex-1 flex flex-col min-h-0">
                             
                             <!-- SOURCE CODE TEXT HIGHLIGHTER -->
-                            <div id="codeViewContainer" class="flex-1 overflow-auto bg-[#111726] p-4 text-xs font-mono relative leading-relaxed">
+                            <div id="codeViewContainer" class="flex-1 overflow-auto bg-[#111726] p-4 text-xs font-mono relative leading-relaxed group">
                                 <pre class="m-0 h-full"><code id="codeViewerArea" class="language-javascript"></code></pre>
+                                <!-- Floating copy & download buttons -->
+                                <div class="absolute top-4 right-4 flex items-center space-x-2 opacity-50 group-hover:opacity-100 focus-within:opacity-100 transition-opacity duration-200 z-10">
+                                    <button id="floatingCopyBtn" class="px-2.5 py-1.5 bg-slate-800/90 hover:bg-slate-700 text-slate-200 rounded border border-slate-700 text-[11px] font-semibold transition-all flex items-center gap-1 shadow-md hover:scale-105 active:scale-95">
+                                        <i class="fa-solid fa-copy"></i> 전체 복사
+                                    </button>
+                                    <button id="floatingDownloadBtn" class="px-2.5 py-1.5 bg-emerald-600/95 hover:bg-emerald-500 text-white rounded border border-emerald-500/20 text-[11px] font-semibold transition-all flex items-center gap-1 shadow-md hover:scale-105 active:scale-95">
+                                        <i class="fa-solid fa-download"></i> 다운로드
+                                    </button>
+                                </div>
                             </div>
 
                             <!-- IMAGE VIEWER -->
@@ -409,11 +425,20 @@
                             </div>
 
                             <!-- PLIST INTERACTIVE OBJECT TREE VIEWER -->
-                            <div id="plistViewContainer" class="hidden flex-1 overflow-auto bg-[#111726] p-6 text-xs">
+                            <div id="plistViewContainer" class="hidden flex-1 overflow-auto bg-[#111726] p-6 text-xs relative group">
                                 <div class="border-b border-slate-800 pb-3 mb-4">
                                     <span class="text-emerald-400 font-bold uppercase tracking-wider text-[10px] bg-emerald-400/10 px-2 py-0.5 rounded border border-emerald-500/20">JSON/Plist Structure</span>
                                 </div>
                                 <pre id="plistJsonArea" class="text-slate-300 font-mono leading-relaxed select-all whitespace-pre-wrap"></pre>
+                                <!-- Floating plist copy & download buttons -->
+                                <div class="absolute top-4 right-4 flex items-center space-x-2 opacity-50 group-hover:opacity-100 focus-within:opacity-100 transition-opacity duration-200 z-10">
+                                    <button id="floatingPlistCopyBtn" class="px-2.5 py-1.5 bg-slate-800/90 hover:bg-slate-700 text-slate-200 rounded border border-slate-700 text-[11px] font-semibold transition-all flex items-center gap-1 shadow-md hover:scale-105 active:scale-95">
+                                        <i class="fa-solid fa-copy"></i> 전체 복사
+                                    </button>
+                                    <button id="floatingPlistDownloadBtn" class="px-2.5 py-1.5 bg-emerald-600/95 hover:bg-emerald-500 text-white rounded border border-emerald-500/20 text-[11px] font-semibold transition-all flex items-center gap-1 shadow-md hover:scale-105 active:scale-95">
+                                        <i class="fa-solid fa-download"></i> 다운로드
+                                    </button>
+                                </div>
                             </div>
 
                         </div>
@@ -434,10 +459,20 @@
                             </div>
                         </div>
 
-                        <!-- SEARCH WITHIN STRINGS -->
-                        <div class="relative max-w-md w-full">
-                            <i class="fa-solid fa-filter absolute left-3 top-2.5 text-xs text-slate-500"></i>
-                            <input type="text" id="stringsSearchInput" placeholder="추출된 문자열 검색 (예: http, key, api, Class)..." class="w-full bg-slate-900 border border-slate-800 rounded-lg py-1.5 pl-8 pr-3 text-xs text-slate-300 focus:outline-none focus:border-amber-500/50" />
+                        <!-- SEARCH WITHIN STRINGS & ACTIONS -->
+                        <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 w-full">
+                            <div class="relative max-w-md w-full">
+                                <i class="fa-solid fa-filter absolute left-3 top-2.5 text-xs text-slate-500"></i>
+                                <input type="text" id="stringsSearchInput" placeholder="추출된 문자열 검색 (예: http, key, api, Class)..." class="w-full bg-slate-900 border border-slate-800 rounded-lg py-1.5 pl-8 pr-3 text-xs text-slate-300 focus:outline-none focus:border-amber-500/50" />
+                            </div>
+                            <div id="stringsActionGroup" class="hidden flex items-center space-x-2 shrink-0">
+                                <button id="copyStringsBtn" class="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded text-xs font-semibold transition-all flex items-center gap-1.5 hover:scale-105 active:scale-95">
+                                    <i class="fa-solid fa-copy"></i> 전체 복사
+                                </button>
+                                <button id="downloadStringsBtn" class="px-3 py-1.5 bg-emerald-600/20 hover:bg-emerald-600 text-emerald-400 hover:text-white border border-emerald-500/20 rounded text-xs font-semibold transition-all flex items-center gap-1.5 hover:scale-105 active:scale-95">
+                                    <i class="fa-solid fa-download"></i> 다운로드
+                                </button>
+                            </div>
                         </div>
 
                         <!-- LIST OF EXTRACTED STRINGS -->
@@ -553,6 +588,15 @@
         const copyContentBtn = document.getElementById('copyContentBtn');
         const downloadFileBtn = document.getElementById('downloadFileBtn');
         
+        // New Copy/Download floating and strings buttons
+        const floatingCopyBtn = document.getElementById('floatingCopyBtn');
+        const floatingDownloadBtn = document.getElementById('floatingDownloadBtn');
+        const floatingPlistCopyBtn = document.getElementById('floatingPlistCopyBtn');
+        const floatingPlistDownloadBtn = document.getElementById('floatingPlistDownloadBtn');
+        const stringsActionGroup = document.getElementById('stringsActionGroup');
+        const copyStringsBtn = document.getElementById('copyStringsBtn');
+        const downloadStringsBtn = document.getElementById('downloadStringsBtn');
+        
         // Dashboard Tab elements
         const dashboardFramework = document.getElementById('dashboardFramework');
         const dashboardBundleId = document.getElementById('dashboardBundleId');
@@ -567,6 +611,8 @@
         const stringsListArea = document.getElementById('stringsListArea');
         const exportAllCodeBtn = document.getElementById('exportAllCodeBtn');
         const copyAiPromptBtn = document.getElementById('copyAiPromptBtn');
+        const copyAiPromptFullBtn = document.getElementById('copyAiPromptFullBtn');
+        const copyRecreationPromptBtn = document.getElementById('copyRecreationPromptBtn');
         const downloadAiPromptBtn = document.getElementById('downloadAiPromptBtn');
         const appIconPlaceholder = document.getElementById('appIconPlaceholder');
 
@@ -737,6 +783,7 @@
             // Restore file empty viewer
             viewerEmptyState.classList.remove('hidden');
             viewerActiveState.classList.add('hidden');
+            stringsActionGroup.classList.add('hidden');
             appIconPlaceholder.innerHTML = '<i class="fa-brands fa-apple text-3xl text-slate-400"></i>';
         });
 
@@ -1530,6 +1577,7 @@
                 // We loaded executable binary, populate Strings tab!
                 currentExtractedBinaryStrings = filePayload.content;
                 renderStringsList(currentExtractedBinaryStrings);
+                stringsActionGroup.classList.remove('hidden');
                 selectTab('strings');
                 addLog(`Extracted ${currentExtractedBinaryStrings.length} print strings from Mach-O executable!`, "success");
             }
@@ -1686,6 +1734,7 @@
                     });
                     
                     codeViewerArea.textContent = beautified;
+                    activeFileContent = beautified; // Update reference so copy/download uses beautified code
                     Prism.highlightElement(codeViewerArea);
                     addLog("Successfully formatted JavaScript bundle code!", "success");
                     beautifyJsBtn.classList.add('hidden'); // hide format button once done
@@ -1697,29 +1746,38 @@
             }, 50);
         });
 
-        // COPY TO CLIPBOARD
-        copyContentBtn.addEventListener('click', () => {
+        // UNIFIED COPY TO CLIPBOARD
+        function copyActiveContent(btnElement) {
             if (!activeFileContent) return;
             navigator.clipboard.writeText(activeFileContent)
                 .then(() => {
-                    const originalText = copyContentBtn.innerHTML;
-                    copyContentBtn.innerHTML = `<i class="fa-solid fa-check text-emerald-400"></i> 복사 완료`;
+                    const originalHTML = btnElement.innerHTML;
+                    btnElement.innerHTML = `<i class="fa-solid fa-check text-emerald-400"></i> 복사 완료`;
                     setTimeout(() => {
-                        copyContentBtn.innerHTML = originalText;
+                        btnElement.innerHTML = originalHTML;
                     }, 1500);
                 })
                 .catch(err => {
                     alert('클립보드 복사 실패: ' + err);
                 });
-        });
+        }
 
-        // DOWNLOAD SINGLE FILE
-        downloadFileBtn.addEventListener('click', async () => {
+        copyContentBtn.addEventListener('click', () => copyActiveContent(copyContentBtn));
+        floatingCopyBtn.addEventListener('click', () => copyActiveContent(floatingCopyBtn));
+        floatingPlistCopyBtn.addEventListener('click', () => copyActiveContent(floatingPlistCopyBtn));
+
+        // UNIFIED DOWNLOAD SINGLE FILE
+        async function downloadActiveFile() {
             if (!activeFilePath) return;
             
             try {
                 let blob;
-                if (appMode === 'backend') {
+                const ext = activeFilePath.substring(activeFilePath.lastIndexOf('.')).toLowerCase();
+                const isText = [".js", ".json", ".html", ".css", ".xml", ".txt", ".md", ".yaml", ".yml", ".sh", ".plist", ".strings", ".stringsdict"].includes(ext) || activeFilePath.endsWith("main.jsbundle");
+                
+                if (isText && activeFileContent) {
+                    blob = new Blob([activeFileContent], { type: "text/plain;charset=utf-8" });
+                } else if (appMode === 'backend') {
                     // fetch raw binary or text
                     const url = `${apiHost}/api/file?path=${encodeURIComponent(activeFilePath)}`;
                     const response = await fetch(url);
@@ -1732,8 +1790,6 @@
                         const array = [];
                         for (let i = 0; i < binary.length; i++) array.push(binary.charCodeAt(i));
                         blob = new Blob([new Uint8Array(array)], { type: data.mime });
-                    } else if (data.type === 'plist') {
-                        blob = new Blob([JSON.stringify(data.content, null, 2)], { type: "application/json" });
                     } else {
                         blob = new Blob([data.content], { type: "text/plain" });
                     }
@@ -1746,15 +1802,65 @@
                 const url = URL.createObjectURL(blob);
                 const a = document.createElement('a');
                 a.href = url;
-                a.download = activeFilePath.split('/').pop();
+                let downloadName = activeFilePath.split('/').pop();
+                if (ext === '.plist' && isText) {
+                    downloadName = downloadName + ".json"; // download decoded plist as JSON
+                }
+                a.download = downloadName;
                 document.body.appendChild(a);
                 a.click();
                 document.body.removeChild(a);
                 URL.revokeObjectURL(url);
-                addLog(`Downloaded individual asset file: ${activeFilePath.split('/').pop()}`, "success");
+                addLog(`Downloaded individual asset file: ${downloadName}`, "success");
             } catch (err) {
                 alert("파일 다운로드에 실패했습니다: " + err.message);
             }
+        }
+
+        downloadFileBtn.addEventListener('click', downloadActiveFile);
+        floatingDownloadBtn.addEventListener('click', downloadActiveFile);
+        floatingPlistDownloadBtn.addEventListener('click', downloadActiveFile);
+
+        // BINARY STRINGS ACTIONS
+        copyStringsBtn.addEventListener('click', () => {
+            if (currentExtractedBinaryStrings.length === 0) return;
+            const searchVal = stringsSearchInput.value.toLowerCase().trim();
+            const filtered = searchVal === '' 
+                ? currentExtractedBinaryStrings 
+                : currentExtractedBinaryStrings.filter(s => s.toLowerCase().includes(searchVal));
+                
+            const textToCopy = filtered.join('\n');
+            navigator.clipboard.writeText(textToCopy)
+                .then(() => {
+                    const originalHTML = copyStringsBtn.innerHTML;
+                    copyStringsBtn.innerHTML = `<i class="fa-solid fa-check text-emerald-400"></i> 복사 완료`;
+                    setTimeout(() => {
+                        copyStringsBtn.innerHTML = originalHTML;
+                    }, 1500);
+                })
+                .catch(err => {
+                    alert('문자열 복사 실패: ' + err);
+                });
+        });
+
+        downloadStringsBtn.addEventListener('click', () => {
+            if (currentExtractedBinaryStrings.length === 0) return;
+            const searchVal = stringsSearchInput.value.toLowerCase().trim();
+            const filtered = searchVal === '' 
+                ? currentExtractedBinaryStrings 
+                : currentExtractedBinaryStrings.filter(s => s.toLowerCase().includes(searchVal));
+                
+            const textToDownload = filtered.join('\n');
+            const blob = new Blob([textToDownload], { type: "text/plain;charset=utf-8" });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `${appMetadata.executable_name}_extracted_strings.txt`;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+            addLog("Downloaded extracted strings file!", "success");
         });
 
         // EXPORT ALL AS ZIP (EXCLUDING BULKY BINARY LIBRARIES)
@@ -1829,36 +1935,37 @@
         // ============================================
         // AI VIBE CODING UNIFIED CONTEXT GENERATOR
         // ============================================
-        async function buildAiUnifiedContext() {
-            let contextText = "=====================================================================\\n";
-            contextText += "  IPA EXTRACTED CODEBASE CONTEXT FOR AI VIBE CODING\\n";
-            contextText += `  App Name  : ${appMetadata.app_name}\\n`;
-            contextText += `  Bundle ID : ${appMetadata.bundle_id}\\n`;
-            contextText += `  Version   : ${appMetadata.version} (Build ${appMetadata.build_num})\\n`;
-            contextText += `  Framework : ${appMetadata.framework}\\n`;
-            contextText += `  iOS SDK   : ${appMetadata.sdk_name}\\n`;
-            contextText += `  Min iOS   : iOS ${appMetadata.min_os}+\\n`;
-            contextText += `  Generated : ${new Date().toLocaleString()}\\n`;
-            contextText += "=====================================================================\\n\\n";
+        async function buildAiUnifiedContext(skipFilters = false) {
+            let contextText = "=====================================================================\n";
+            contextText += "  IPA EXTRACTED CODEBASE CONTEXT FOR AI VIBE CODING\n";
+            contextText += `  App Name  : ${appMetadata.app_name}\n`;
+            contextText += `  Bundle ID : ${appMetadata.bundle_id}\n`;
+            contextText += `  Version   : ${appMetadata.version} (Build ${appMetadata.build_num})\n`;
+            contextText += `  Framework : ${appMetadata.framework}\n`;
+            contextText += `  iOS SDK   : ${appMetadata.sdk_name}\n`;
+            contextText += `  Min iOS   : iOS ${appMetadata.min_os}+\n`;
+            contextText += `  Generated : ${new Date().toLocaleString()}\n`;
+            contextText += `  Mode      : ${skipFilters ? 'Unfiltered (All text files included)' : 'Token Optimized (Core code only)'}\n`;
+            contextText += "=====================================================================\n\n";
 
-            contextText += "=====================================================================\\n";
-            contextText += "  DIRECTORY TREE STRUCTURE\\n";
-            contextText += "=====================================================================\\n";
+            contextText += "=====================================================================\n";
+            contextText += "  DIRECTORY TREE STRUCTURE\n";
+            contextText += "=====================================================================\n";
             
             if (appMode === 'client' && clientZipInstance) {
                 for (const path of Object.keys(activeZipFiles)) {
-                    if (!path.includes(".framework/") && !path.endsWith(".dylib") && path !== appMetadata.executable_name) {
-                        contextText += `- ${path}\\n`;
+                    if (skipFilters || (!path.includes(".framework/") && !path.endsWith(".dylib") && path !== appMetadata.executable_name)) {
+                        contextText += `- ${path}\n`;
                     }
                 }
             } else {
                 allFilePathsList.forEach(path => {
-                    contextText += `- ${path}\\n`;
+                    contextText += `- ${path}\n`;
                 });
             }
-            contextText += "\\n\\n";
+            contextText += "\n\n";
 
-            addLog("AI Vibe Coding Context Builder started...");
+            addLog(`AI Vibe Coding Context Builder started (skipFilters: ${skipFilters})...`);
             
             const codeExtensions = [".js", ".json", ".html", ".css", ".xml", ".plist", ".strings", ".stringsdict", ".md", ".txt", ".yaml", ".yml", ".sh"];
             let filesProcessed = 0;
@@ -1867,13 +1974,19 @@
                 for (const [path, entry] of Object.entries(activeZipFiles)) {
                     const ext = path.substring(path.lastIndexOf('.')).toLowerCase();
                     const filename = path.split('/').pop();
-                    const isCode = codeExtensions.includes(ext) || filename === "main.jsbundle";
-                    const isBulky = path.includes(".framework/") || path.includes("/Frameworks/") || path.endsWith(".dylib") || path.endsWith(appMetadata.executable_name);
+                    
+                    // If skipFilters is true, we process ANY file extension as long as it's not a known bulky binary (like .dylib, png/jpg images, mp3/wav, or the main executable binary)
+                    const isBulkyBinary = path.endsWith(".dylib") || path.endsWith(appMetadata.executable_name) || [".png", ".jpg", ".jpeg", ".gif", ".bmp", ".ico", ".svg", ".mp3", ".wav", ".mp4", ".ttf", ".otf", ".woff", ".woff2", ".pdf"].includes(ext);
+                    
+                    // If skipFilters is false, we restrict to core codeExtensions and avoid .framework/ or /Frameworks/
+                    const shouldProcess = skipFilters 
+                        ? !isBulkyBinary 
+                        : (codeExtensions.includes(ext) || filename === "main.jsbundle") && !path.includes(".framework/") && !path.includes("/Frameworks/");
 
-                    if (isCode && !isBulky) {
-                        contextText += `\\n\\n// =====================================================================\\n`;
-                        contextText += `// FILE PATH: ${path}\\n`;
-                        contextText += `// =====================================================================\\n\\n`;
+                    if (shouldProcess) {
+                        contextText += `\n\n// =====================================================================\n`;
+                        contextText += `// FILE PATH: ${path}\n`;
+                        contextText += `// =====================================================================\n\n`;
                         
                         try {
                             if (ext === '.plist' || ext === '.strings') {
@@ -1897,7 +2010,7 @@
                         } catch (err) {
                             contextText += `[Error reading file: ${err.message}]`;
                         }
-                        contextText += "\\n";
+                        contextText += "\n";
                     }
                 }
             } else {
@@ -1909,8 +2022,13 @@
                     for (const node of nodes) {
                         if (node.type === 'file') {
                             const ext = node.name.substring(node.name.lastIndexOf('.')).toLowerCase();
-                            const isCode = codeExtensions.includes(ext) || node.name === "main.jsbundle" || node.file_type === 'plist' || node.file_type === 'code';
-                            if (isCode && !node.path.includes(".framework/") && !node.path.includes("/Frameworks/")) {
+                            const isBulkyBinary = node.name.endsWith(".dylib") || node.name === appMetadata.executable_name || [".png", ".jpg", ".jpeg", ".gif", ".bmp", ".ico", ".svg", ".mp3", ".wav", ".mp4", ".ttf", ".otf", ".woff", ".woff2", ".pdf"].includes(ext);
+                            
+                            const shouldProcess = skipFilters
+                                ? !isBulkyBinary
+                                : (codeExtensions.includes(ext) || node.name === "main.jsbundle" || node.file_type === 'plist' || node.file_type === 'code') && !node.path.includes(".framework/") && !node.path.includes("/Frameworks/");
+                                
+                            if (shouldProcess) {
                                 collected.push(node);
                             }
                         } else if (node.type === 'directory' && node.children) {
@@ -1928,9 +2046,9 @@
                 let count = 0;
                 for (const fileNode of codeFilesToFetch) {
                     showLoading(true, "AI 컨텍스트 병합 중...", `소스코드 병합 진행 중: (${count + 1}/${codeFilesToFetch.length}) ${fileNode.name}`);
-                    contextText += `\\n\\n// =====================================================================\\n`;
-                    contextText += `// FILE PATH: ${fileNode.path}\\n`;
-                    contextText += `// =====================================================================\\n\\n`;
+                    contextText += `\n\n// =====================================================================\n`;
+                    contextText += `// FILE PATH: ${fileNode.path}\n`;
+                    contextText += `// =====================================================================\n\n`;
                     
                     try {
                         const url = `${apiHost}/api/file?path=${encodeURIComponent(fileNode.path)}`;
@@ -1950,29 +2068,29 @@
                     } catch (err) {
                         contextText += `[Error fetching file: ${err.message}]`;
                     }
-                    contextText += "\\n";
+                    contextText += "\n";
                     count++;
                 }
             }
 
             showLoading(false);
-            addLog(`Merged ${filesProcessed} source files into a unified AI Context!`, "success");
+            addLog(`Merged ${filesProcessed} source files into a unified AI Context (skipFilters: ${skipFilters})!`, "success");
             return contextText;
         }
 
         // Clip board Copy handler
         copyAiPromptBtn.addEventListener('click', async () => {
             if (!appMetadata) return;
-            showLoading(true, "코드 가공 및 클립보드 복사 중...", "모든 원본 소스코드를 한 군데 모아 복사하고 있습니다.");
+            showLoading(true, "코드 가공 및 클립보드 복사 중...", "모든 핵심 소스코드를 한 군데 모아 복사하고 있습니다.");
             
             try {
-                const unifiedCode = await buildAiUnifiedContext();
+                const unifiedCode = await buildAiUnifiedContext(false);
                 await navigator.clipboard.writeText(unifiedCode);
                 
                 const originalText = copyAiPromptBtn.innerHTML;
                 copyAiPromptBtn.innerHTML = `<i class="fa-solid fa-check text-emerald-400 animate-bounce"></i> 통합 복사 완료!`;
-                addLog("Successfully copied unified code context to clipboard!", "success");
-                alert("바이브코딩용 소스코드 전체가 복사되었습니다!\\n\\n클로드(Claude), ChatGPT, Cursor AI 등 대화창에 그대로 '붙여넣기(Ctrl+V)'하여 즉시 코딩을 시작해 보세요!");
+                addLog("Successfully copied unified core code context to clipboard!", "success");
+                alert("바이브코딩용 핵심 소스코드가 복사되었습니다!\n\n대화창에 그대로 '붙여넣기(Ctrl+V)'하여 즉시 코딩을 시작해 보세요!");
                 
                 setTimeout(() => {
                     copyAiPromptBtn.innerHTML = originalText;
@@ -1980,6 +2098,31 @@
             } catch (err) {
                 alert("통합 복사에 실패했습니다: " + err.message);
                 addLog(`Unified Context Copy Failed: ${err.message}`, "error");
+            } finally {
+                showLoading(false);
+            }
+        });
+
+        // Unfiltered Copy handler
+        copyAiPromptFullBtn.addEventListener('click', async () => {
+            if (!appMetadata) return;
+            showLoading(true, "코드 전체 수집 및 복사 중...", "토큰 절약 없이 모든 텍스트 파일을 한 군데 모아 복사하고 있습니다.");
+            
+            try {
+                const unifiedCode = await buildAiUnifiedContext(true);
+                await navigator.clipboard.writeText(unifiedCode);
+                
+                const originalText = copyAiPromptFullBtn.innerHTML;
+                copyAiPromptFullBtn.innerHTML = `<i class="fa-solid fa-check text-emerald-400 animate-bounce"></i> 전체 복사 완료!`;
+                addLog("Successfully copied ALL text/code files context to clipboard!", "success");
+                alert("토큰 절약 필터 없이 전체 소스코드(모든 텍스트 파일)가 복사되었습니다!\n\n대화창에 그대로 '붙여넣기(Ctrl+V)'하세요!");
+                
+                setTimeout(() => {
+                    copyAiPromptFullBtn.innerHTML = originalText;
+                }, 3000);
+            } catch (err) {
+                alert("전체 복사에 실패했습니다: " + err.message);
+                addLog(`Unfiltered Context Copy Failed: ${err.message}`, "error");
             } finally {
                 showLoading(false);
             }
@@ -2007,6 +2150,72 @@
             } catch (err) {
                 alert("통합 파일 다운로드 실패: " + err.message);
                 addLog(`Unified Context Download Failed: ${err.message}`, "error");
+            } finally {
+                showLoading(false);
+            }
+        });
+
+        // App Recreation Prompt Builder
+        async function buildAppRecreationPrompt() {
+            let prompt = "여기 디컴파일된 iOS IPA 앱의 전체 파일 구조가 있어.\n";
+            prompt += "이 구조를 토대로 이 앱의 홈 화면, UI 컴포넌트, 메뉴 내비게이션 구조, 효과음 및 오디오 리소스 배치 등을 정밀하게 유추하여, 동일한 앱을 리액트 네이티브(React Native)나 플러터(Flutter) 또는 웹(HTML/JS) 코드로 재생성하는 가이드를 작성해줘.\n\n";
+            
+            prompt += "=====================================================================\n";
+            prompt += "  APP METADATA\n";
+            prompt += "=====================================================================\n";
+            prompt += `  App Name  : ${appMetadata.app_name}\n`;
+            prompt += `  Bundle ID : ${appMetadata.bundle_id}\n`;
+            prompt += `  Framework : ${appMetadata.framework}\n`;
+            prompt += `  Version   : ${appMetadata.version} (Build ${appMetadata.build_num})\n`;
+            prompt += `  Min iOS   : iOS ${appMetadata.min_os}+\n`;
+            prompt += "=====================================================================\n\n";
+
+            prompt += "=====================================================================\n";
+            prompt += "  ALL DETECTED FILE PATHS (RESOURCE & CODE STRUCTURE)\n";
+            prompt += "=====================================================================\n";
+            
+            if (appMode === 'client' && clientZipInstance) {
+                for (const path of Object.keys(activeZipFiles)) {
+                    prompt += `- ${path}\n`;
+                }
+            } else {
+                allFilePathsList.forEach(path => {
+                    prompt += `- ${path}\n`;
+                });
+            }
+            prompt += "\n";
+
+            prompt += "=====================================================================\n";
+            prompt += "  INSTRUCTIONS FOR AI RECONSTRUCTION\n";
+            prompt += "=====================================================================\n";
+            prompt += "1. 위 파일 트리 구조에서 HTML, JS, CSS, JSON, Plist 파일 등의 레이아웃과 설정 정보를 식별해줘.\n";
+            prompt += "2. 이미지 파일(예: PNG, JPG), 효과음 및 오디오 파일(예: MP3, WAV, CAF), 폰트 파일(예: TTF, OTF) 등의 리소스 목록을 분류하여 각 UI 화면과 효과음이 어디에 매핑될지 구조화해줘.\n";
+            prompt += "3. 홈 화면, 서브 메뉴, 설정 페이지 등의 화면 흐름(Navigation Flow)을 유추하여 코드로 구현해줘.\n";
+            prompt += "4. 이 앱의 핵심 비즈니스 로직과 사운드 재생 등을 포함해 작동 가능한 단일 파일 프로토타입 또는 구성 컴포넌트 전체 소스코드를 작성해줘.\n";
+            
+            return prompt;
+        }
+
+        // Copy App Recreation Prompt Listener
+        copyRecreationPromptBtn.addEventListener('click', async () => {
+            if (!appMetadata) return;
+            showLoading(true, "앱 재현 프롬프트 생성 중...", "전체 파일 트리 및 에셋 분석 결과를 프롬프트로 가공하고 있습니다.");
+            
+            try {
+                const prompt = await buildAppRecreationPrompt();
+                await navigator.clipboard.writeText(prompt);
+                
+                const originalText = copyRecreationPromptBtn.innerHTML;
+                copyRecreationPromptBtn.innerHTML = `<i class="fa-solid fa-check text-emerald-400"></i> 복사 완료!`;
+                addLog("Successfully copied UI/Asset recreation prompt to clipboard!", "success");
+                alert("홈 화면, UI, 메뉴, 효과음 등 모든 요소 분석이 포함된 '앱 복원용 AI 프롬프트'가 성공적으로 클립보드에 복사되었습니다!\n\nAI(Claude, ChatGPT 등)에 이 프롬프트를 붙여넣어 앱 재구축을 요청해보세요.");
+                
+                setTimeout(() => {
+                    copyRecreationPromptBtn.innerHTML = originalText;
+                }, 3000);
+            } catch (err) {
+                alert("프롬프트 복사에 실패했습니다: " + err.message);
+                addLog(`Recreation Prompt Copy Failed: ${err.message}`, "error");
             } finally {
                 showLoading(false);
             }
