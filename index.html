@@ -758,11 +758,14 @@
             e.preventDefault();
             dropZone.classList.remove('border-emerald-500', 'bg-emerald-500/10');
             const file = e.dataTransfer.files[0];
-            if (file && (file.name.endsWith('.ipa') || file.name.endsWith('.apk'))) {
-                processIPAFile(file);
-            } else {
-                alert('올바른 iOS IPA 또는 Android APK 파일을 업로드해 주십시오.');
+            if (file) {
+                const filename = file.name.toLowerCase();
+                if (filename.endsWith('.ipa') || filename.endsWith('.apk')) {
+                    processIPAFile(file);
+                    return;
+                }
             }
+            alert('올바른 iOS IPA 또는 Android APK 파일을 업로드해 주십시오.');
         });
 
         ipaFileInput.addEventListener('change', (e) => {
@@ -804,7 +807,7 @@
         // MAIN CONTROLLER FOR PROCESSING IPA / APK
         async function processIPAFile(file) {
             logConsoleContainer.classList.remove('hidden');
-            const isApk = file.name.endsWith('.apk');
+            const isApk = file.name.toLowerCase().endsWith('.apk');
             addLog(`${isApk ? 'APK' : 'IPA'} 업로드 감지: ${file.name} (${(file.size / (1024 * 1024)).toFixed(2)} MB)`);
             
             showLoading(true, `${isApk ? 'APK' : 'IPA'} 패키지 해독 중...`, "파일 용량 및 로컬 사양에 따라 수초가 소요됩니다.");
@@ -890,7 +893,7 @@
         // 2. CLIENT-ONLY DIRECT IN-BROWSER MODE
         // ============================================
         async function processWithClientOnly(file) {
-            const isApk = file.name.endsWith('.apk');
+            const isApk = file.name.toLowerCase().endsWith('.apk');
             addLog(`Using high-performance Client-Side Javascript decoder... (Format: ${isApk ? 'APK' : 'IPA'})`);
             extractionProgressBar.style.width = '10%';
             extractionProgressText.innerText = '10%';
@@ -1002,17 +1005,17 @@
                 if (isApk) {
                     if (zip.file("assets/index.android.bundle") || zip.file("assets/main.jsbundle")) {
                         framework = "React Native";
-                    } else if (zip.folder("assets/flutter_assets").length > 0 || zip.file("assets/flutter_assets/AssetManifest.json")) {
+                    } else if (Object.keys(zip.files).some(p => p.startsWith("assets/flutter_assets/")) || zip.file("assets/flutter_assets/AssetManifest.json")) {
                         framework = "Flutter";
-                    } else if (zip.folder("assets/www").length > 0 || zip.folder("assets/public").length > 0) {
+                    } else if (Object.keys(zip.files).some(p => p.startsWith("assets/www/")) || Object.keys(zip.files).some(p => p.startsWith("assets/public/"))) {
                         framework = "Cordova / Capacitor / Ionic";
                     }
                 } else {
                     if (zip.file(`${appFolderPath}/main.jsbundle`) || zip.file(`${appFolderPath}/assets/main.jsbundle`)) {
                         framework = "React Native";
-                    } else if (zip.folder(`${appFolderPath}/flutter_assets`).length > 0) {
+                    } else if (Object.keys(zip.files).some(p => p.startsWith(`${appFolderPath}/flutter_assets/`))) {
                         framework = "Flutter";
-                    } else if (zip.folder(`${appFolderPath}/www`).length > 0 || zip.folder(`${appFolderPath}/public`).length > 0) {
+                    } else if (Object.keys(zip.files).some(p => p.startsWith(`${appFolderPath}/www/`)) || Object.keys(zip.files).some(p => p.startsWith(`${appFolderPath}/public/`))) {
                         framework = "Cordova / Capacitor / Ionic";
                     }
                 }
@@ -1256,7 +1259,8 @@
             dashboardBundleId.innerText = metadata.bundle_id;
             dashboardVersion.innerText = `${metadata.version} (Build ${metadata.build_num})`;
             
-            if (metadata.min_os && (metadata.min_os.includes("Android") || metadata.min_os.includes("API"))) {
+            const isAndroid = metadata.min_os && typeof metadata.min_os === 'string' && (metadata.min_os.includes("Android") || metadata.min_os.includes("API"));
+            if (isAndroid) {
                 dashboardMinOs.innerText = metadata.min_os;
             } else {
                 dashboardMinOs.innerText = `iOS ${metadata.min_os}+`;
@@ -1284,7 +1288,7 @@
             } else {
                 permissionsTableBody.innerHTML = `
                     <tr>
-                        <td colspan="3" class="py-4 text-center text-slate-500">${(metadata.min_os && (metadata.min_os.includes("Android") || metadata.min_os.includes("API"))) ? 'AndroidManifest.xml에 정의된 보안 권한 요청 목록이 없습니다.' : 'Info.plist에 정의된 보안 권한 요청 문구가 없습니다. (Native API를 사용하지 않거나, 자체 정의 라이브러리 탑재)'}</td>
+                        <td colspan="3" class="py-4 text-center text-slate-500">${isAndroid ? 'AndroidManifest.xml에 정의된 보안 권한 요청 목록이 없습니다.' : 'Info.plist에 정의된 보안 권한 요청 문구가 없습니다. (Native API를 사용하지 않거나, 자체 정의 라이브러리 탑재)'}</td>
                     </tr>
                 `;
             }
@@ -1919,10 +1923,10 @@
                             "type": "plist",
                             "content": parsedData
                         }, fileNode.name);
-                    } else if (fileNode.name === appMetadata.executable_name || fileNode.name.endsWith('.dex') || fileNode.name.endsWith('.so')) {
+                    } else if (fileNode.name === appMetadata.executable_name || fileNode.name.toLowerCase().endsWith('.dex') || fileNode.name.toLowerCase().endsWith('.so')) {
                         // Native Mach-O / DEX / Shared Library compiled binary in client-side mode
                         showLoading(false);
-                        const fileLabel = fileNode.name.endsWith('.dex') ? 'Android DEX 바이트코드' : fileNode.name.endsWith('.so') ? 'Android 공유 라이브러리(.so) 바이너리' : 'iOS 네이티브 실행 바이너리 기계어';
+                        const fileLabel = fileNode.name.toLowerCase().endsWith('.dex') ? 'Android DEX 바이트코드' : fileNode.name.toLowerCase().endsWith('.so') ? 'Android 공유 라이브러리(.so) 바이너리' : 'iOS 네이티브 실행 바이너리 기계어';
                         const confirmExtract = confirm(`선택하신 파일은 ${fileLabel} 파일입니다.\n클라이언트 모드에서 바이너리 크기가 크면 브라우저가 일시적으로 느려질 수 있습니다.\n문자열(Strings) 스캔을 실행하시겠습니까?`);
                         if (confirmExtract) {
                             showLoading(true, "바이너리 해독 중...", "기계어 바이너리 텍스트 데이터를 문자열로 변환하고 있습니다.");
@@ -1938,7 +1942,7 @@
                             viewerEmptyState.classList.remove('hidden');
                             viewerActiveState.classList.add('hidden');
                         }
-                    } else if (fileNode.name.endsWith('.xml')) {
+                    } else if (fileNode.name.toLowerCase().endsWith('.xml')) {
                         // Android Binary XML decompile support
                         const arrayBuffer = await zipEntry.async("arraybuffer");
                         let isBinaryAxml = false;
