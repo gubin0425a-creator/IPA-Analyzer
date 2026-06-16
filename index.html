@@ -2453,6 +2453,23 @@
                                     parsedData = fallbackPlistRegexParser(await entry.async("text"));
                                 }
                                 contextText += JSON.stringify(parsedData, null, 2);
+                            } else if (ext === '.xml') {
+                                const arrayBuffer = await entry.async("arraybuffer");
+                                let isBinaryAxml = false;
+                                if (arrayBuffer.byteLength >= 4) {
+                                    const view = new DataView(arrayBuffer);
+                                    if (view.getUint32(0, true) === 0x00080003) {
+                                        isBinaryAxml = true;
+                                    }
+                                }
+                                let xmlContent = "";
+                                if (isBinaryAxml) {
+                                    try { xmlContent = decompileAxml(arrayBuffer); }
+                                    catch (e) { xmlContent = new TextDecoder("utf-8").decode(new Uint8Array(arrayBuffer)); }
+                                } else {
+                                    xmlContent = new TextDecoder("utf-8").decode(new Uint8Array(arrayBuffer));
+                                }
+                                contextText += xmlContent;
                             } else {
                                 let fileText = await entry.async("text");
                                 if (filename === 'main.jsbundle') {
@@ -2502,6 +2519,23 @@
                                     parsedData = fallbackPlistRegexParser(await entry.async("text"));
                                 }
                                 contextText += JSON.stringify(parsedData, null, 2);
+                            } else if (ext === '.xml') {
+                                const arrayBuffer = await entry.async("arraybuffer");
+                                let isBinaryAxml = false;
+                                if (arrayBuffer.byteLength >= 4) {
+                                    const view = new DataView(arrayBuffer);
+                                    if (view.getUint32(0, true) === 0x00080003) {
+                                        isBinaryAxml = true;
+                                    }
+                                }
+                                let xmlContent = "";
+                                if (isBinaryAxml) {
+                                    try { xmlContent = decompileAxml(arrayBuffer); }
+                                    catch (e) { xmlContent = new TextDecoder("utf-8").decode(new Uint8Array(arrayBuffer)); }
+                                } else {
+                                    xmlContent = new TextDecoder("utf-8").decode(new Uint8Array(arrayBuffer));
+                                }
+                                contextText += xmlContent;
                             } else {
                                 let fileText = await entry.async("text");
                                 if (filename === 'main.jsbundle') {
