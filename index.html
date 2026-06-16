@@ -2386,6 +2386,12 @@
                 let skippedLibs = 0;
                 let skippedMeta = 0;
                 let skippedFonts = 0;
+                let skippedRes = 0;
+                let skippedDex = 0;
+                let skippedProperties = 0;
+                let skippedProtos = 0;
+                let skippedBuiltins = 0;
+                let skippedConfigs = 0;
                 
                 for (const path of Object.keys(activeZipFiles)) {
                     const ext = path.substring(path.lastIndexOf('.')).toLowerCase();
@@ -2394,7 +2400,7 @@
                         skippedDrawables++;
                         continue;
                     }
-                    if (path.startsWith("lib/") || path.endsWith(".so")) {
+                    if (path.startsWith("lib/") || path.endsWith(".so") || path.endsWith(".dylib") || path.includes(".framework/") || path === appMetadata.executable_name) {
                         skippedLibs++;
                         continue;
                     }
@@ -2407,15 +2413,47 @@
                         continue;
                     }
                     
-                    if (skipFilters || (!path.includes(".framework/") && !path.endsWith(".dylib") && path !== appMetadata.executable_name)) {
-                        contextText += `- ${path}\n`;
+                    if (!skipFilters) {
+                        if (path.startsWith("res/")) {
+                            skippedRes++;
+                            continue;
+                        }
+                        if (path.endsWith(".dex")) {
+                            skippedDex++;
+                            continue;
+                        }
+                        if (path.endsWith(".properties")) {
+                            skippedProperties++;
+                            continue;
+                        }
+                        if (path.startsWith("google/protobuf/") || path.endsWith(".proto")) {
+                            skippedProtos++;
+                            continue;
+                        }
+                        if (path.includes("kotlin/") || path.endsWith(".kotlin_builtins")) {
+                            skippedBuiltins++;
+                            continue;
+                        }
+                        if (path.endsWith(".bin") || path.endsWith(".txt") || path.endsWith(".gz") || path.startsWith("com/")) {
+                            skippedConfigs++;
+                            continue;
+                        }
                     }
+                    
+                    contextText += `- ${path}\n`;
                 }
                 
-                if (skippedDrawables > 0) contextText += `- res/drawable/... (총 ${skippedDrawables}개의 이미지 및 드로어블 리소스 파일 목록 생략)\n`;
-                if (skippedLibs > 0) contextText += `- lib/... (총 ${skippedLibs}개의 네이티브 공유 라이브러리 바이너리 파일 목록 생략)\n`;
-                if (skippedMeta > 0) contextText += `- META-INF/... (총 ${skippedMeta}개의 서명 및 메타데이터 파일 목록 생략)\n`;
-                if (skippedFonts > 0) contextText += `- assets/fonts/... (총 ${skippedFonts}개의 폰트 파일 목록 생략)\n`;
+                contextText += "\n각 리소스 파일 정보 및 역할 요약:\n";
+                if (skippedDrawables > 0) contextText += `* 이미지 및 드로어블 리소스 (${skippedDrawables}개 파일 생략): 앱 화면에 렌더링되는 이미지, 아이콘, 그래픽 및 상태별 리소스 이미지 파일들입니다.\n`;
+                if (skippedLibs > 0) contextText += `* 네이티브 플랫폼 라이브러리 (${skippedLibs}개 파일 생략): 안드로이드 기기 또는 iOS 런타임에 종속된 C/C++ 네이티브 실행 라이브러리 모듈들입니다.\n`;
+                if (skippedMeta > 0) contextText += `* 디지털 서명 및 패키지 메타데이터 (${skippedMeta}개 파일 생략): 앱 무결성 확인 및 종속 라이브러리의 버전 서명 정보 파일들입니다.\n`;
+                if (skippedFonts > 0) contextText += `* 글꼴 서체 리소스 (${skippedFonts}개 파일 생략): 앱 내 텍스트와 UI 라벨 렌더링에 사용되는 웹/네이티브 폰트 파일들입니다.\n`;
+                if (skippedRes > 0) contextText += `* UI 스타일 정의 XML 리소스 (${skippedRes}개 파일 생략): 안드로이드 네이티브 화면 배치 레이아웃, 컬러 리스트, 화면 전환 애니메이션 정의 파일들입니다.\n`;
+                if (skippedDex > 0) contextText += `* 달빅 실행 바이너리 코드 (${skippedDex}개 파일 생략): 자바 및 코틀린 코드가 기계어로 컴파일되어 안드로이드 기기에서 실제 기동되는 핵심 앱 연동 소스 바이너리 파일들입니다.\n`;
+                if (skippedProperties > 0) contextText += `* SDK/라이브러리 빌드 설정 (${skippedProperties}개 파일 생략): 내장된 구글 플레이 결제 서비스, 파이어베이스, 푸시 알림 수신 SDK 등의 버전 및 라이브러리 환경 설정용 빌드 프로퍼티 파일들입니다.\n`;
+                if (skippedProtos > 0) contextText += `* 데이터 모델 스키마 정의 (${skippedProtos}개 파일 생략): 프로토콜 버퍼로 구조화된 앱 내부 데이터 통신 및 API 송수신용 스키마 정의 파일들입니다.\n`;
+                if (skippedBuiltins > 0) contextText += `* 코틀린 표준 라이브러리 타입 정의 (${skippedBuiltins}개 파일 생략): 코틀린 프로그래밍 언어로 작성된 코드의 런타임 구동과 컴파일 연동을 위한 타입 매핑 정보 파일들입니다.\n`;
+                if (skippedConfigs > 0) contextText += `* 기타 프레임워크 구동 보조 설정 (${skippedConfigs}개 파일 생략): 멀티덱스 제어 및 앱 모니터링 로그 스크립트 등 앱이 동작하기 위해 사용하는 보조 도구 및 속성 텍스트 파일들입니다.\n`;
             }
             contextText += "\n\n";
 
@@ -2429,13 +2467,30 @@
                     const ext = path.substring(path.lastIndexOf('.')).toLowerCase();
                     const filename = path.split('/').pop();
                     
-                    // If skipFilters is true, we process ANY file extension as long as it's not a known bulky binary (like .dylib, png/jpg images, mp3/wav, or the main executable binary)
                     const isBulkyBinary = path.endsWith(".dylib") || path.endsWith(appMetadata.executable_name) || [".png", ".jpg", ".jpeg", ".gif", ".bmp", ".ico", ".svg", ".mp3", ".wav", ".mp4", ".ttf", ".otf", ".woff", ".woff2", ".pdf"].includes(ext);
                     
-                    // If skipFilters is false, we restrict to core codeExtensions and avoid .framework/ or /Frameworks/
-                    const shouldProcess = skipFilters 
-                        ? !isBulkyBinary 
-                        : (codeExtensions.includes(ext) || filename === "main.jsbundle") && !path.includes(".framework/") && !path.includes("/Frameworks/");
+                    let shouldProcess = false;
+                    if (skipFilters) {
+                        shouldProcess = !isBulkyBinary;
+                    } else {
+                        const isCoreExtension = codeExtensions.includes(ext) || filename === "main.jsbundle" || filename === "index.android.bundle";
+                        const isExcludedPath = path.startsWith("res/") || 
+                                               path.startsWith("META-INF/") || 
+                                               path.startsWith("lib/") || 
+                                               path.startsWith("com/") || 
+                                               path.startsWith("google/") || 
+                                               path.includes("kotlin/") ||
+                                               path.endsWith(".properties") ||
+                                               path.endsWith(".bin") ||
+                                               path.endsWith(".dex") ||
+                                               path.endsWith(".txt") ||
+                                               path.endsWith(".gz") ||
+                                               path.includes(".framework/") || 
+                                               path.includes("/Frameworks/");
+                        
+                        const isCrucialManifest = filename === "AndroidManifest.xml" || filename === "Info.plist";
+                        shouldProcess = (isCoreExtension && !isExcludedPath) || isCrucialManifest;
+                    }
 
                     if (shouldProcess) {
                         contextText += `\n\n// =====================================================================\n`;
@@ -2714,15 +2769,79 @@
             prompt += "3. 📂 분석용 원본 파일 구조 및 트리\n";
             prompt += "---------------------------------------------------------------------\n";
             if (clientZipInstance) {
+                let skippedDrawables = 0;
+                let skippedLibs = 0;
+                let skippedMeta = 0;
+                let skippedFonts = 0;
+                let skippedRes = 0;
+                let skippedDex = 0;
+                let skippedProperties = 0;
+                let skippedProtos = 0;
+                let skippedBuiltins = 0;
+                let skippedConfigs = 0;
+
                 const paths = Object.keys(activeZipFiles);
-                prompt += `총 ${paths.length}개의 파일 구조가 감지되었습니다. 주요 파일 목록은 다음과 같습니다:\n`;
-                const filteredPaths = paths.filter(p => !p.includes(".framework/") && !p.endsWith(".dylib") && !p.endsWith(".png") && !p.endsWith(".jpg"));
-                filteredPaths.slice(0, 150).forEach(p => {
-                    prompt += `- ${p}\n`;
-                });
-                if (filteredPaths.length > 150) {
-                    prompt += `...외 ${filteredPaths.length - 150}개 파일 목록 생략 (소스코드 내용 참조)\n`;
+                prompt += `총 ${paths.length}개의 파일 구조가 감지되었습니다. 주요 파일 구조는 다음과 같습니다:\n\n`;
+
+                for (const path of paths) {
+                    const ext = path.substring(path.lastIndexOf('.')).toLowerCase();
+                    const filename = path.split('/').pop();
+
+                    if (path.startsWith("META-INF/")) {
+                        skippedMeta++;
+                        continue;
+                    }
+                    if (path.startsWith("lib/") || path.endsWith(".so") || path.endsWith(".dylib") || path.includes(".framework/") || path === appMetadata.executable_name) {
+                        skippedLibs++;
+                        continue;
+                    }
+                    if (path.startsWith("res/drawable") || path.endsWith(".png") || path.endsWith(".jpg") || path.endsWith(".jpeg") || path.endsWith(".gif")) {
+                        skippedDrawables++;
+                        continue;
+                    }
+                    if (path.startsWith("assets/fonts/") || path.endsWith(".ttf") || path.endsWith(".otf")) {
+                        skippedFonts++;
+                        continue;
+                    }
+                    if (path.startsWith("res/")) {
+                        skippedRes++;
+                        continue;
+                    }
+                    if (path.endsWith(".dex")) {
+                        skippedDex++;
+                        continue;
+                    }
+                    if (path.endsWith(".properties")) {
+                        skippedProperties++;
+                        continue;
+                    }
+                    if (path.startsWith("google/protobuf/") || path.endsWith(".proto")) {
+                        skippedProtos++;
+                        continue;
+                    }
+                    if (path.includes("kotlin/") || path.endsWith(".kotlin_builtins")) {
+                        skippedBuiltins++;
+                        continue;
+                    }
+                    if (path.endsWith(".bin") || path.endsWith(".txt") || path.endsWith(".gz") || path.startsWith("com/")) {
+                        skippedConfigs++;
+                        continue;
+                    }
+
+                    prompt += `- ${path}\n`;
                 }
+
+                prompt += "\n각 리소스 파일 정보 및 역할 요약:\n";
+                if (skippedDrawables > 0) prompt += `* 이미지 및 드로어블 리소스 (${skippedDrawables}개 파일 생략): 앱 화면에 렌더링되는 이미지, 아이콘, 그래픽 및 상태별 리소스 이미지 파일들입니다.\n`;
+                if (skippedLibs > 0) prompt += `* 네이티브 플랫폼 라이브러리 (${skippedLibs}개 파일 생략): 안드로이드 기기 또는 iOS 런타임에 종속된 C/C++ 네이티브 실행 라이브러리 모듈들입니다.\n`;
+                if (skippedMeta > 0) prompt += `* 디지털 서명 및 패키지 메타데이터 (${skippedMeta}개 파일 생략): 앱 무결성 확인 및 종속 라이브러리의 버전 서명 정보 파일들입니다.\n`;
+                if (skippedFonts > 0) prompt += `* 글꼴 서체 리소스 (${skippedFonts}개 파일 생략): 앱 내 텍스트와 UI 라벨 렌더링에 사용되는 웹/네이티브 폰트 파일들입니다.\n`;
+                if (skippedRes > 0) prompt += `* UI 스타일 정의 XML 리소스 (${skippedRes}개 파일 생략): 안드로이드 네이티브 화면 배치 레이아웃, 컬러 리스트, 화면 전환 애니메이션 정의 파일들입니다.\n`;
+                if (skippedDex > 0) prompt += `* 달빅 실행 바이너리 코드 (${skippedDex}개 파일 생략): 자바 및 코틀린 코드가 기계어로 컴파일되어 안드로이드 기기에서 실제 기동되는 핵심 앱 연동 소스 바이너리 파일들입니다.\n`;
+                if (skippedProperties > 0) prompt += `* SDK/라이브러리 빌드 설정 (${skippedProperties}개 파일 생략): 내장된 구글 플레이 결제 서비스, 파이어베이스, 푸시 알림 수신 SDK 등의 버전 및 라이브러리 환경 설정용 빌드 프로퍼티 파일들입니다.\n`;
+                if (skippedProtos > 0) prompt += `* 데이터 모델 스키마 정의 (${skippedProtos}개 파일 생략): 프로토콜 버퍼로 구조화된 앱 내부 데이터 통신 및 API 송수신용 스키마 정의 파일들입니다.\n`;
+                if (skippedBuiltins > 0) prompt += `* 코틀린 표준 라이브러리 타입 정의 (${skippedBuiltins}개 파일 생략): 코틀린 프로그래밍 언어로 작성된 코드의 런타임 구동과 컴파일 연동을 위한 타입 매핑 정보 파일들입니다.\n`;
+                if (skippedConfigs > 0) prompt += `* 기타 프레임워크 구동 보조 설정 (${skippedConfigs}개 파일 생략): 멀티덱스 제어 및 앱 모니터링 로그 스크립트 등 앱이 동작하기 위해 사용하는 보조 도구 및 속성 텍스트 파일들입니다.\n`;
             }
             prompt += "\n";
             
