@@ -846,7 +846,7 @@
         // 2. CLIENT-ONLY DIRECT IN-BROWSER MODE
         // ============================================
         async function processWithClientOnly(file) {
-            const isApk = file.name.toLowerCase().endsWith('.apk');
+            let isApk = file.name.toLowerCase().endsWith('.apk');
             addLog(`Using high-performance Client-Side Javascript decoder... (Format: ${isApk ? 'APK' : 'IPA'})`);
             extractionProgressBar.style.width = '10%';
             extractionProgressText.innerText = '10%';
@@ -861,6 +861,23 @@
                 extractionProgressBar.style.width = '40%';
                 extractionProgressText.innerText = '40%';
                 addLog(`Extracted zip mapping metadata. Found ${Object.keys(zip.files).length} files!`);
+
+                // Auto-detect format by checking contents
+                const hasAndroidManifest = zip.file("AndroidManifest.xml") !== null || Object.keys(zip.files).some(p => p.endsWith("AndroidManifest.xml"));
+                const hasDex = Object.keys(zip.files).some(p => p.endsWith(".dex"));
+                const hasPayload = Object.keys(zip.files).some(p => p.includes("Payload/") || p.includes(".app/"));
+                
+                if (hasAndroidManifest || hasDex) {
+                    if (!isApk) {
+                        isApk = true;
+                        addLog("Dynamic detection: Android signature files found. Treating package as APK.", "warn");
+                    }
+                } else if (hasPayload) {
+                    if (isApk) {
+                        isApk = false;
+                        addLog("Dynamic detection: iOS Payload directory found. Treating package as IPA.", "warn");
+                    }
+                }
 
                 let appFolderPath = "";
                 let info = {};
