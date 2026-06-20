@@ -94,7 +94,7 @@
 
             <!-- DRAG AND DROP AREA -->
             <label id="dropZone" class="w-full border-2 border-dashed border-slate-700 hover:border-emerald-500/70 bg-slate-900/40 hover:bg-slate-900/60 transition-all rounded-2xl p-6 sm:p-12 flex flex-col items-center justify-center cursor-pointer group relative overflow-hidden">
-                <input type="file" id="ipaFileInput" accept=".ipa,.apk" class="hidden" />
+                <input type="file" id="ipaFileInput" accept=".ipa,.apk,.xapk" class="hidden" />
                 <div class="bg-slate-800/80 group-hover:bg-emerald-500/10 p-5 rounded-2xl mb-4 text-slate-400 group-hover:text-emerald-400 transition-all shadow-inner border border-slate-700/50 group-hover:border-emerald-500/20">
                     <i class="fa-solid fa-cloud-arrow-up text-3xl sm:text-4xl animate-bounce"></i>
                 </div>
@@ -775,12 +775,12 @@
             const file = e.dataTransfer.files[0];
             if (file) {
                 const filename = file.name.toLowerCase();
-                if (filename.endsWith('.ipa') || filename.endsWith('.apk')) {
+                if (filename.endsWith('.ipa') || filename.endsWith('.apk') || filename.endsWith('.xapk')) {
                     processIPAFile(file);
                     return;
                 }
             }
-            alert('올바른 iOS IPA 또는 Android APK 파일을 업로드해 주십시오.');
+            alert('올바른 iOS IPA, Android APK 또는 XAPK 파일을 업로드해 주십시오.');
         });
 
         ipaFileInput.addEventListener('change', (e) => {
@@ -819,13 +819,15 @@
             appIconPlaceholder.innerHTML = '<i class="fa-brands fa-apple text-3xl text-slate-400"></i>';
         });
 
-        // MAIN CONTROLLER FOR PROCESSING IPA / APK
+        // MAIN CONTROLLER FOR PROCESSING IPA / APK / XAPK
         async function processIPAFile(file) {
             logConsoleContainer.classList.remove('hidden');
-            const isApk = file.name.toLowerCase().endsWith('.apk');
-            addLog(`${isApk ? 'APK' : 'IPA'} 업로드 감지: ${file.name} (${(file.size / (1024 * 1024)).toFixed(2)} MB)`);
+            const isApk = file.name.toLowerCase().endsWith('.apk') || file.name.toLowerCase().endsWith('.xapk');
+            const isXapk = file.name.toLowerCase().endsWith('.xapk');
+            const formatLabel = isXapk ? 'XAPK' : (isApk ? 'APK' : 'IPA');
+            addLog(`${formatLabel} 업로드 감지: ${file.name} (${(file.size / (1024 * 1024)).toFixed(2)} MB)`);
             
-            showLoading(true, `${isApk ? 'APK' : 'IPA'} 패키지 해독 중...`, "파일 용량 및 로컬 사양에 따라 수초가 소요됩니다.");
+            showLoading(true, `${formatLabel} 패키지 해독 중...`, "파일 용량 및 로컬 사양에 따라 수초가 소요됩니다.");
 
             await processWithClientOnly(file);
         }
@@ -846,14 +848,14 @@
         // 2. CLIENT-ONLY DIRECT IN-BROWSER MODE
         // ============================================
         async function processWithClientOnly(file) {
-            let isApk = file.name.toLowerCase().endsWith('.apk');
+            let isApk = file.name.toLowerCase().endsWith('.apk') || file.name.toLowerCase().endsWith('.xapk');
             addLog(`Using high-performance Client-Side Javascript decoder... (Format: ${isApk ? 'APK' : 'IPA'})`);
             extractionProgressBar.style.width = '10%';
             extractionProgressText.innerText = '10%';
 
             try {
                 addLog("Parsing zip structures with JSZip...");
-                const zip = await JSZip.loadAsync(file, {
+                let zip = await JSZip.loadAsync(file, {
                     metadata: true
                 });
                 clientZipInstance = zip;
@@ -861,6 +863,55 @@
                 extractionProgressBar.style.width = '40%';
                 extractionProgressText.innerText = '40%';
                 addLog(`Extracted zip mapping metadata. Found ${Object.keys(zip.files).length} files!`);
+
+                // Check for XAPK format (contains nested APKs)
+                const isXapk = file.name.toLowerCase().endsWith('.xapk') || 
+                               (Object.keys(zip.files).some(p => p.endsWith(".apk")) && zip.file("AndroidManifest.xml") === null);
+                
+                if (isXapk) {
+                    addLog("Detected XAPK container package. Scanning for base APK...", "warn");
+                    let baseApkEntry = null;
+                    
+                    // 1. Look for base.apk
+                    for (const path of Object.keys(zip.files)) {
+                        if (path.toLowerCase() === "base.apk") {
+                            baseApkEntry = zip.file(path);
+                            break;
+                        }
+                    }
+                    
+                    // 2. If not found, look for the largest APK file
+                    if (!baseApkEntry) {
+                        let largestApkPath = "";
+                        let largestSize = 0;
+                        for (const [path, entry] of Object.entries(zip.files)) {
+                            if (path.endsWith(".apk")) {
+                                const size = entry._data ? entry._data.uncompressedSize : 0;
+                                if (size > largestSize) {
+                                    largestSize = size;
+                                    largestApkPath = path;
+                                }
+                            }
+                        }
+                        if (largestApkPath) {
+                            addLog(`base.apk not found. Selecting largest APK as base: ${largestApkPath}`, "warn");
+                            baseApkEntry = zip.file(largestApkPath);
+                        }
+                    }
+                    
+                    if (baseApkEntry) {
+                        addLog("Extracting nested base APK data...");
+                        const baseApkData = await baseApkEntry.async("uint8array");
+                        addLog("Re-initializing decompiler with nested base APK zip archive...");
+                        const innerZip = await JSZip.loadAsync(baseApkData);
+                        zip = innerZip;
+                        clientZipInstance = innerZip;
+                        isApk = true;
+                        addLog("Successfully extracted and loaded base APK from XAPK!", "success");
+                    } else {
+                        addLog("Could not find any valid base APK inside XAPK container!", "error");
+                    }
+                }
 
                 // Auto-detect format by checking contents
                 const hasAndroidManifest = zip.file("AndroidManifest.xml") !== null || Object.keys(zip.files).some(p => p.endsWith("AndroidManifest.xml"));
