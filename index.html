@@ -406,6 +406,18 @@
                             
                             <!-- SOURCE CODE TEXT HIGHLIGHTER -->
                             <div id="codeViewContainer" class="flex-1 relative min-h-0 flex flex-col group">
+                                <!-- PAGE CONTROLLER FOR COMBINED CODE -->
+                                <div id="codePaginationBar" class="hidden bg-[#0d1424] border-b border-slate-800/80 px-4 py-2 flex items-center justify-between text-xs text-slate-300 shrink-0 select-none">
+                                    <div class="flex items-center space-x-2">
+                                        <button id="prevCodePageBtn" class="px-2.5 py-1 bg-slate-800 hover:bg-slate-700 rounded text-slate-300 transition-colors cursor-pointer flex items-center gap-1 font-semibold">
+                                            <i class="fa-solid fa-chevron-left text-[10px]"></i> 이전
+                                        </button>
+                                        <button id="nextCodePageBtn" class="px-2.5 py-1 bg-slate-800 hover:bg-slate-700 rounded text-slate-300 transition-colors cursor-pointer flex items-center gap-1 font-semibold">
+                                            다음 <i class="fa-solid fa-chevron-right text-[10px]"></i>
+                                        </button>
+                                    </div>
+                                    <span id="codePageIndicator" class="font-mono text-slate-400">1 / 1 페이지 (0 ~ 0 자 / 총 0 자)</span>
+                                </div>
                                 <div class="flex-1 overflow-auto bg-[#111726] p-4 text-xs font-mono leading-relaxed">
                                     <pre class="m-0 h-full"><code id="codeViewerArea" class="language-javascript"></code></pre>
                                 </div>
@@ -563,6 +575,10 @@
         let currentExtractedBinaryStrings = []; // Cache binary strings
         let currentTreeData = null; // Store current tree structure
         
+        let combinedCodeTotal = ""; // Storage for all combined source files
+        let combinedCodeCurrentPage = 0; // Current active page index for combined code
+        const combinedCodePageSize = 30000; // Limit character render size per page
+        
         let activeMobileView = 'tree'; // 'tree' or 'content'
 
         // Robust Clipboard Copy helper (works on secure/insecure contexts and older browsers/mobile webviews)
@@ -696,6 +712,10 @@
         const copyRawSourceBtn = document.getElementById('copyRawSourceBtn');
         const copyRecreationPromptBtn = document.getElementById('copyRecreationPromptBtn');
         const viewAllCodeCombinedBtn = document.getElementById('viewAllCodeCombinedBtn');
+        const codePaginationBar = document.getElementById('codePaginationBar');
+        const prevCodePageBtn = document.getElementById('prevCodePageBtn');
+        const nextCodePageBtn = document.getElementById('nextCodePageBtn');
+        const codePageIndicator = document.getElementById('codePageIndicator');
         const appIconPlaceholder = document.getElementById('appIconPlaceholder');
 
         // Initial boot logger (100% Client-Side)
@@ -1927,6 +1947,7 @@
             
             // Hide all sub-containers
             codeViewContainer.classList.add('hidden');
+            codePaginationBar.classList.add('hidden');
             imageViewContainer.classList.add('hidden');
             plistViewContainer.classList.add('hidden');
             mediaViewContainer.classList.add('hidden');
@@ -3035,6 +3056,9 @@
                 try {
                     const combinedCode = await buildRawSourceCode();
                     
+                    combinedCodeTotal = combinedCode;
+                    combinedCodeCurrentPage = 0;
+                    
                     activeFilePath = "ALL_COMBINED_SOURCE_CODE.txt";
                     activeFileContent = combinedCode;
                     activeFileBreadcrumb.innerText = "모든 파일 병합 코드 (Combined Source Code)";
@@ -3043,6 +3067,7 @@
                     viewerActiveState.classList.remove('hidden');
                     
                     codeViewContainer.classList.remove('hidden');
+                    codePaginationBar.classList.remove('hidden');
                     imageViewContainer.classList.add('hidden');
                     plistViewContainer.classList.add('hidden');
                     mediaViewContainer.classList.add('hidden');
@@ -3050,14 +3075,9 @@
                     beautifyJsBtn.classList.add('hidden');
                     
                     codeViewerArea.className = "language-javascript";
-                    codeViewerArea.textContent = combinedCode;
                     
-                    // Safety check: skip Prism highlight if text is too large to prevent crash (over 150KB)
-                    if (combinedCode.length < 150000) {
-                        Prism.highlightElement(codeViewerArea);
-                    } else {
-                        addLog("Combined source code is too large. Skipping syntax highlighting for performance.", "warn");
-                    }
+                    // Render page 0
+                    renderCombinedCodePage(0);
                     
                     addLog("Successfully loaded all file source codes in a single view!", "success");
                     
@@ -3068,6 +3088,59 @@
                     showLoading(false);
                 }
             }, 100);
+        });
+
+        // Combined Code Pagination Render Helper
+        function renderCombinedCodePage(page) {
+            const totalLength = combinedCodeTotal.length;
+            const totalPages = Math.max(1, Math.ceil(totalLength / combinedCodePageSize));
+            
+            // Boundary enforcement
+            if (page < 0) page = 0;
+            if (page >= totalPages) page = totalPages - 1;
+            combinedCodeCurrentPage = page;
+            
+            const startChar = page * combinedCodePageSize;
+            const endChar = Math.min(startChar + combinedCodePageSize, totalLength);
+            const chunk = combinedCodeTotal.substring(startChar, endChar);
+            
+            // Set sliced text into container
+            codeViewerArea.textContent = chunk;
+            Prism.highlightElement(codeViewerArea);
+            
+            // Update Page Indicators
+            codePageIndicator.innerText = `${page + 1} / ${totalPages} 페이지 (글자: ${startChar.toLocaleString()} ~ ${endChar.toLocaleString()} 자 / 총 ${totalLength.toLocaleString()} 자)`;
+            
+            // Update Button Status
+            prevCodePageBtn.disabled = (page === 0);
+            nextCodePageBtn.disabled = (page === totalPages - 1);
+            
+            // Styling disabled status
+            if (page === 0) {
+                prevCodePageBtn.classList.add('opacity-50', 'cursor-not-allowed');
+            } else {
+                prevCodePageBtn.classList.remove('opacity-50', 'cursor-not-allowed');
+            }
+            if (page === totalPages - 1) {
+                nextCodePageBtn.classList.add('opacity-50', 'cursor-not-allowed');
+            } else {
+                nextCodePageBtn.classList.remove('opacity-50', 'cursor-not-allowed');
+            }
+        }
+
+        // Pagination buttons click listener
+        prevCodePageBtn.addEventListener('click', () => {
+            if (combinedCodeCurrentPage > 0) {
+                renderCombinedCodePage(combinedCodeCurrentPage - 1);
+            }
+        });
+
+        nextCodePageBtn.addEventListener('click', () => {
+            const totalLength = combinedCodeTotal.length;
+            const totalPages = Math.max(1, Math.ceil(totalLength / combinedCodePageSize));
+            if (combinedCodeCurrentPage < totalPages - 1) {
+                renderCombinedCodePage(combinedCodeCurrentPage + 1);
+            }
         });
 
     </script>
