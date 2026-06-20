@@ -747,65 +747,6 @@
             return 1;
         }
 
-        // Helper to extract a lightweight header & strings snippet from bulky binary files (ELF, DEX, Mach-O)
-        async function getBinaryFileSnippet(entry) {
-            try {
-                const u8 = await entry.async("uint8array");
-                const len = u8.length;
-                
-                let hexHeader = "";
-                const headerLen = Math.min(len, 16);
-                for (let i = 0; i < headerLen; i++) {
-                    hexHeader += u8[i].toString(16).padStart(2, '0').toUpperCase() + " ";
-                }
-                
-                let formatText = "Unknown Binary Format";
-                if (u8[0] === 0x7F && u8[1] === 0x45 && u8[2] === 0x4C && u8[3] === 0x46) {
-                    formatText = "ELF (Executable and Linkable Format) Library";
-                } else if (u8[0] === 0x64 && u8[1] === 0x65 && u8[2] === 0x78 && u8[3] === 0x0A) {
-                    formatText = "DEX (Dalvik Executable) bytecode";
-                } else if ((u8[0] === 0xCF && u8[1] === 0xFA && u8[2] === 0xED && u8[3] === 0xFE) || 
-                           (u8[0] === 0xCE && u8[1] === 0xFA && u8[2] === 0xED && u8[3] === 0xFE)) {
-                    formatText = "Mach-O Executable Binary";
-                }
-                
-                const strings = [];
-                let current = [];
-                const scanLimit = Math.min(len, 64 * 1024); // scan up to 64KB for performance speed
-                
-                for (let i = 0; i < scanLimit; i++) {
-                    const b = u8[i];
-                    if (b >= 32 && b <= 126) {
-                        current.push(String.fromCharCode(b));
-                    } else {
-                        if (current.length >= 4) {
-                            const str = current.join('').trim();
-                            if (str.length >= 4 && /^[a-zA-Z0-9_\-\.\/\$\(\)\{\}\[\]\+:=]+$/.test(str)) {
-                                strings.push(str);
-                            }
-                        }
-                        current = [];
-                    }
-                }
-                
-                const uniqueStrings = [...new Set(strings)].slice(0, 45);
-                
-                let snippet = `[BINARY FILE - ${formatText}]\n`;
-                snippet += `[Hex Header: ${hexHeader.trim()}]\n`;
-                snippet += `[File Size: ${len.toLocaleString()} bytes]\n`;
-                snippet += `[Extracted Symbol & Text Strings (Snippet):]\n`;
-                if (uniqueStrings.length > 0) {
-                    snippet += uniqueStrings.map(s => `  ${s}`).join('\n');
-                } else {
-                    snippet += `  (No printable ASCII strings found in header segment)`;
-                }
-                
-                return snippet;
-            } catch (err) {
-                return `[Error loading binary snippet: ${err.message}]`;
-            }
-        }
-
         // Initial boot logger (100% Client-Side)
         addLog("100% Client-Side Web Sandbox Engine activated.");
         addLog("ZIP extraction, Binary-plist parsing, DEX & AXML decompiling run natively inside your browser.");
@@ -2736,22 +2677,26 @@
                     const ext = path.substring(path.lastIndexOf('.')).toLowerCase();
                     const filename = path.split('/').pop();
                     
-                    const isBinaryFile = path.endsWith(".dylib") || path.endsWith(appMetadata.executable_name) || ext === ".so" || ext === ".dex" || ext === ".so.toc" || ext === ".a";
-                    const isMediaOrAsset = [".png", ".jpg", ".jpeg", ".gif", ".bmp", ".ico", ".svg", ".mp3", ".wav", ".mp4", ".ttf", ".otf", ".woff", ".woff2", ".pdf"].includes(ext);
+                    const isBulkyBinary = path.endsWith(".dylib") || path.endsWith(appMetadata.executable_name) || [".png", ".jpg", ".jpeg", ".gif", ".bmp", ".ico", ".svg", ".mp3", ".wav", ".mp4", ".ttf", ".otf", ".woff", ".woff2", ".pdf"].includes(ext);
                     
                     let shouldProcess = false;
                     if (skipFilters) {
-                        shouldProcess = !isMediaOrAsset;
+                        shouldProcess = !isBulkyBinary;
                     } else {
-                        const isCoreExtension = codeExtensions.includes(ext) || filename === "main.jsbundle" || filename === "index.android.bundle" || isBinaryFile;
+                        const isCoreExtension = codeExtensions.includes(ext) || filename === "main.jsbundle" || filename === "index.android.bundle";
                         const isExcludedPath = path.startsWith("res/") || 
                                                path.startsWith("META-INF/") || 
+                                               path.startsWith("lib/") || 
                                                path.startsWith("com/") || 
                                                path.startsWith("google/") || 
                                                path.includes("kotlin/") ||
                                                path.endsWith(".properties") ||
                                                path.endsWith(".bin") ||
-                                               path.endsWith(".gz");
+                                               path.endsWith(".dex") ||
+                                               path.endsWith(".txt") ||
+                                               path.endsWith(".gz") ||
+                                               path.includes(".framework/") || 
+                                               path.includes("/Frameworks/");
                         
                         const isCrucialManifest = filename === "AndroidManifest.xml" || filename === "Info.plist";
                         shouldProcess = (isCoreExtension && !isExcludedPath) || isCrucialManifest;
@@ -2763,10 +2708,7 @@
                         contextText += `// =====================================================================\n\n`;
                         
                         try {
-                            if (isBinaryFile) {
-                                const binarySnippet = await getBinaryFileSnippet(entry);
-                                contextText += binarySnippet;
-                            } else if (ext === '.plist' || ext === '.strings') {
+                            if (ext === '.plist' || ext === '.strings') {
                                 const arrayBuffer = await entry.async("arraybuffer");
                                 let parsedData = {};
                                 if (plistParser) {
@@ -2835,16 +2777,12 @@
                     const ext = path.substring(path.lastIndexOf('.')).toLowerCase();
                     const filename = path.split('/').pop();
                     
-                    const isBinaryFile = path.endsWith(".dylib") || path.endsWith(appMetadata.executable_name) || ext === ".so" || ext === ".dex" || ext === ".so.toc" || ext === ".a";
-                    const isMediaOrAsset = [".png", ".jpg", ".jpeg", ".gif", ".bmp", ".ico", ".svg", ".mp3", ".wav", ".mp4", ".ttf", ".otf", ".woff", ".woff2", ".pdf"].includes(ext);
+                    const isBulkyBinary = path.endsWith(".dylib") || path.endsWith(appMetadata.executable_name) || [".png", ".jpg", ".jpeg", ".gif", ".bmp", ".ico", ".svg", ".mp3", ".wav", ".mp4", ".ttf", ".otf", ".woff", ".woff2", ".pdf"].includes(ext);
                     
-                    if (!isMediaOrAsset) {
+                    if (!isBulkyBinary) {
                         contextText += `// FILE: ${path}\n`;
                         try {
-                            if (isBinaryFile) {
-                                const binarySnippet = await getBinaryFileSnippet(entry);
-                                contextText += binarySnippet;
-                            } else if (ext === '.plist' || ext === '.strings') {
+                            if (ext === '.plist' || ext === '.strings') {
                                 const arrayBuffer = await entry.async("arraybuffer");
                                 let parsedData = {};
                                 if (plistParser) {
@@ -3214,10 +3152,6 @@
             // Set sliced text into container
             codeViewerArea.textContent = chunk;
             Prism.highlightElement(codeViewerArea);
-            
-            // Update active file reference for copying and downloading
-            activeFileContent = chunk;
-            activeFilePath = `ALL_COMBINED_SOURCE_CODE_page_${page + 1}.txt`;
             
             // Update Page Indicators
             codePageIndicator.innerText = `${page + 1} / ${totalPages} 페이지 (글자: ${startChar.toLocaleString()} ~ ${endChar.toLocaleString()} 자 / 총 ${totalLength.toLocaleString()} 자)`;
