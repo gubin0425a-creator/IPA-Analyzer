@@ -718,6 +718,35 @@
         const codePageIndicator = document.getElementById('codePageIndicator');
         const appIconPlaceholder = document.getElementById('appIconPlaceholder');
 
+        // Helper to prioritize boilerplate code first
+        function getFilePriority(path) {
+            const filename = path.split('/').pop().toLowerCase();
+            const ext = filename.substring(filename.lastIndexOf('.')).toLowerCase();
+            
+            if (["info.plist", "androidmanifest.xml", "index.html", "app.js", "index.js", "app.tsx", "index.tsx", "app.jsx", "index.jsx"].includes(filename)) {
+                return 10;
+            }
+            if (filename === "main.jsbundle" || filename === "index.android.bundle") {
+                return 9;
+            }
+            if ([".js", ".jsx", ".ts", ".tsx", ".css"].includes(ext)) {
+                return 8;
+            }
+            if ([".plist", ".strings", ".stringsdict"].includes(ext)) {
+                return 7;
+            }
+            if (ext === ".xml" || ext === ".json") {
+                if (path.includes("assets/") || path.includes("res/")) {
+                    return 5;
+                }
+                return 6;
+            }
+            if ([".yaml", ".yml", ".txt", ".md", ".sh"].includes(ext)) {
+                return 4;
+            }
+            return 1;
+        }
+
         // Initial boot logger (100% Client-Side)
         addLog("100% Client-Side Web Sandbox Engine activated.");
         addLog("ZIP extraction, Binary-plist parsing, DEX & AXML decompiling run natively inside your browser.");
@@ -2636,7 +2665,15 @@
             let filesProcessed = 0;
 
             if (clientZipInstance) {
-                for (const [path, entry] of Object.entries(activeZipFiles)) {
+                const sortedFileEntries = Object.entries(activeZipFiles).sort((a, b) => {
+                    const priorityA = getFilePriority(a[0]);
+                    const priorityB = getFilePriority(b[0]);
+                    if (priorityA !== priorityB) {
+                        return priorityB - priorityA;
+                    }
+                    return a[0].localeCompare(b[0]);
+                });
+                for (const [path, entry] of sortedFileEntries) {
                     const ext = path.substring(path.lastIndexOf('.')).toLowerCase();
                     const filename = path.split('/').pop();
                     
@@ -2728,7 +2765,15 @@
             let filesProcessed = 0;
 
             if (clientZipInstance) {
-                for (const [path, entry] of Object.entries(activeZipFiles)) {
+                const sortedFileEntries = Object.entries(activeZipFiles).sort((a, b) => {
+                    const priorityA = getFilePriority(a[0]);
+                    const priorityB = getFilePriority(b[0]);
+                    if (priorityA !== priorityB) {
+                        return priorityB - priorityA;
+                    }
+                    return a[0].localeCompare(b[0]);
+                });
+                for (const [path, entry] of sortedFileEntries) {
                     const ext = path.substring(path.lastIndexOf('.')).toLowerCase();
                     const filename = path.split('/').pop();
                     
