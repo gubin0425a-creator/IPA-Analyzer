@@ -434,7 +434,24 @@
                                 </p>
                             </div>
 
-                            <!-- PLIST INTERACTIVE OBJECT TREE VIEWER -->
+                             <!-- MEDIA & BINARY VIEWER -->
+                             <div id="mediaViewContainer" class="hidden flex-1 flex-col items-center justify-center p-8 bg-[#0a0d14]">
+                                 <div class="bg-[#111726] p-8 rounded-2xl border border-slate-800 shadow-xl w-full max-w-lg flex flex-col items-center">
+                                     <div id="mediaPreviewWrapper" class="w-full flex items-center justify-center p-4 bg-slate-950/60 rounded-xl border border-slate-800">
+                                         <!-- Dynamically injected preview -->
+                                     </div>
+                                     <div class="mt-6 text-center w-full">
+                                         <p id="mediaFilename" class="text-sm font-bold text-slate-200 truncate">media.mp3</p>
+                                         <p id="mediaTypeInfo" class="text-xs text-slate-500 mt-1 uppercase tracking-wider font-semibold">오디오 파일 (AUDIO)</p>
+                                         <p id="mediaSizeInfo" class="text-xs text-slate-400 mt-0.5">크기: 0 bytes</p>
+                                         <p class="text-xs text-emerald-400 font-bold mt-4 flex items-center justify-center gap-1.5 bg-emerald-500/10 px-3 py-1.5 rounded-lg border border-emerald-500/20 max-w-[280px] mx-auto">
+                                             <i class="fa-solid fa-circle-check"></i> 로컬 기기 저장(다운로드) 가능
+                                         </p>
+                                     </div>
+                                 </div>
+                             </div>
+
+                             <!-- PLIST INTERACTIVE OBJECT TREE VIEWER -->
                             <div id="plistViewContainer" class="hidden flex-1 relative min-h-0 flex flex-col group">
                                 <div class="flex-1 overflow-auto bg-[#111726] p-6 text-xs">
                                     <div class="border-b border-slate-800 pb-3 mb-4">
@@ -538,6 +555,7 @@
         let appMetadata = null; // Stored metadata
         let activeFileContent = null; // Caching content of currently viewed file
         let activeFilePath = null; // Track current file
+        let activeBlobUrl = null; // Track currently playing or previewing media blob URL
         let allFilePathsList = []; // Track list of files for tree filter
         let currentExtractedBinaryStrings = []; // Cache binary strings
         let currentTreeData = null; // Store current tree structure
@@ -632,6 +650,11 @@
         const codeViewContainer = document.getElementById('codeViewContainer');
         const imageViewContainer = document.getElementById('imageViewContainer');
         const plistViewContainer = document.getElementById('plistViewContainer');
+        const mediaViewContainer = document.getElementById('mediaViewContainer');
+        const mediaPreviewWrapper = document.getElementById('mediaPreviewWrapper');
+        const mediaFilename = document.getElementById('mediaFilename');
+        const mediaTypeInfo = document.getElementById('mediaTypeInfo');
+        const mediaSizeInfo = document.getElementById('mediaSizeInfo');
         const codeViewerArea = document.getElementById('codeViewerArea');
         const imageViewerElement = document.getElementById('imageViewerElement');
         const imageFilename = document.getElementById('imageFilename');
@@ -805,6 +828,10 @@
             appMetadata = null;
             activeFileContent = null;
             activeFilePath = null;
+            if (activeBlobUrl) {
+                URL.revokeObjectURL(activeBlobUrl);
+                activeBlobUrl = null;
+            }
             allFilePathsList = [];
             currentExtractedBinaryStrings = [];
             
@@ -1183,14 +1210,16 @@
                             // File node
                             const ext = part.substring(part.lastIndexOf('.')).toLowerCase();
                             let file_type = "text";
-                            if ([".png", ".jpg", ".jpeg", ".gif", ".bmp", ".ico", ".svg"].includes(ext)) {
+                            if ([".png", ".jpg", ".jpeg", ".gif", ".bmp", ".ico", ".svg", ".webp", ".pjp", ".jfif", ".jpe", ".pjpeg"].includes(ext)) {
                                 file_type = "image";
                             } else if ([".plist", ".strings"].includes(ext)) {
                                 file_type = "plist";
                             } else if ([".js", ".json", ".html", ".css", ".xml", ".txt", ".md", ".yaml", ".yml", ".sh", ".stringsdict"].includes(ext)) {
                                 file_type = "code";
-                            } else if (part === "main.jsbundle") {
+                            } else if (part === "main.jsbundle" || part === "index.android.bundle") {
                                 file_type = "code";
+                            } else if ([".mp4", ".webm", ".m4v", ".avi", ".mkv", ".mp3", ".wav", ".ogg", ".aac", ".flac", ".m4a", ".pdf"].includes(ext)) {
+                                file_type = "media";
                             } else {
                                 file_type = "other";
                             }
@@ -1897,6 +1926,7 @@
             codeViewContainer.classList.add('hidden');
             imageViewContainer.classList.add('hidden');
             plistViewContainer.classList.add('hidden');
+            mediaViewContainer.classList.add('hidden');
             fileUtilities.classList.add('hidden');
             beautifyJsBtn.classList.add('hidden');
 
@@ -1914,14 +1944,28 @@
                         const base64Content = await zipEntry.async("base64");
                         const ext = fileNode.name.substring(fileNode.name.lastIndexOf('.')).toLowerCase();
                         let mime = "image/png";
-                        if (ext === '.jpg' || ext === '.jpeg') mime = "image/jpeg";
+                        if (ext === '.jpg' || ext === '.jpeg' || ext === '.jpe' || ext === '.pjpeg' || ext === '.pjp' || ext === '.jfif') mime = "image/jpeg";
                         else if (ext === '.gif') mime = "image/gif";
                         else if (ext === '.svg') mime = "image/svg+xml";
+                        else if (ext === '.webp') mime = "image/webp";
 
                         renderFileInViewer({
                             "type": "image",
                             "mime": mime,
                             "content": `data:${mime};base64,${base64Content}`
+                        }, fileNode.name);
+                    } else if (fileNode.file_type === 'media' || fileNode.file_type === 'other') {
+                        // load as blob
+                        const blob = await zipEntry.async("blob");
+                        if (activeBlobUrl) {
+                            URL.revokeObjectURL(activeBlobUrl);
+                        }
+                        activeBlobUrl = URL.createObjectURL(blob);
+                        renderFileInViewer({
+                            "type": "media",
+                            "file_type": fileNode.file_type,
+                            "content": activeBlobUrl,
+                            "size": blob.size
                         }, fileNode.name);
                     } else if (fileNode.file_type === 'plist') {
                         // plist parser
@@ -2040,6 +2084,43 @@
                 const jsonStr = JSON.stringify(filePayload.content, null, 2);
                 plistJsonArea.textContent = jsonStr;
                 activeFileContent = jsonStr;
+            }
+            else if (filePayload.type === 'media') {
+                mediaViewContainer.classList.remove('hidden');
+                mediaFilename.innerText = filename;
+                
+                const size = filePayload.size || 0;
+                const sizeText = size > 1048576 
+                    ? (size / 1048576).toFixed(2) + " MB" 
+                    : (size / 1024).toFixed(1) + " KB";
+                mediaSizeInfo.innerText = `크기: ${sizeText}`;
+                
+                const ext = filename.substring(filename.lastIndexOf('.')).toLowerCase();
+                let typeText = "기타 파일 (BINARY)";
+                let previewHTML = '';
+                
+                if ([".mp3", ".wav", ".ogg", ".aac", ".flac", ".m4a"].includes(ext)) {
+                    typeText = "오디오 파일 (AUDIO)";
+                    previewHTML = `<audio controls class="w-full" src="${filePayload.content}"></audio>`;
+                } else if ([".mp4", ".webm", ".m4v", ".avi", ".mkv"].includes(ext)) {
+                    typeText = "비디오 파일 (VIDEO)";
+                    previewHTML = `<video controls class="max-h-80 max-w-full rounded shadow" src="${filePayload.content}"></video>`;
+                } else if (ext === ".pdf") {
+                    typeText = "PDF 문서 (PDF)";
+                    previewHTML = `<embed src="${filePayload.content}" type="application/pdf" class="w-full h-80 rounded border border-slate-800" />`;
+                } else {
+                    typeText = "기타 바이너리 파일";
+                    previewHTML = `
+                        <div class="text-center p-4">
+                            <i class="fa-solid fa-file-binary text-4xl text-slate-500 mb-2"></i>
+                            <p class="text-xs text-slate-400">이 파일 형식은 브라우저에서 직접 미리보기를 지원하지 않습니다.</p>
+                        </div>
+                    `;
+                }
+                
+                mediaTypeInfo.innerText = typeText;
+                mediaPreviewWrapper.innerHTML = previewHTML;
+                activeFileContent = null;
             }
             else if (filePayload.type === 'strings') {
                 // We loaded executable binary, populate Strings tab!
